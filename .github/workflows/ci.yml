@@ -19,3 +19,6 @@ jobs:
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
+      # Full-stack smoke inside Electron's runtime (headless): node:sqlite,
+      # core engine, document service — fails CI if the app cannot boot.
+      - run: pnpm --filter @docgit/desktop smoke

@@ -1,11 +1,35 @@
 {
   "name": "@docgit/desktop",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "DocGit macOS desktop app (Milestone 2 — not yet implemented)",
+  "description": "DocGit macOS desktop app — the local-first document version hub.",
+  "main": "out/main/index.js",
   "scripts": {
-    "build": "echo 'desktop: nothing to build yet'",
-    "test": "echo 'desktop: no tests yet'",
-    "typecheck": "echo 'desktop: nothing to typecheck yet'"
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js && DOCGIT_BOOT_CHECK=1 electron out/main/index.js",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "echo 'desktop: covered by smoke test (pnpm smoke) and core tests'"
+  },
+  "dependencies": {
+    "@docgit/core": "workspace:*",
+    "@docgit/ui": "workspace:*",
+    "chokidar": "^4.0.1",
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@fontsource-variable/fraunces": "^5.1.0",
+    "@fontsource-variable/public-sans": "^5.1.0",
+    "@types/node": "^22.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "electron": "^38.2.0",
+    "electron-vite": "^3.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.0"
   }
 }

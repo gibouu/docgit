@@ -1,0 +1,211 @@
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { join } from 'node:path';
+import { DocumentService } from './service.js';
+
+let service: DocumentService | null = null;
+let win: BrowserWindow | null = null;
+
+function notifyRenderer(documentId: string): void {
+  win?.webContents.send('docgit:changed', documentId);
+}
+
+function createWindow(): void {
+  win = new BrowserWindow({
+    width: 1280,
+    height: 840,
+    minWidth: 940,
+    minHeight: 600,
+    title: 'DocGit',
+    titleBarStyle: 'hiddenInset',
+    trafficLightPosition: { x: 18, y: 20 },
+    backgroundColor: '#faf7f2',
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+    },
+  });
+
+  if (process.env['ELECTRON_RENDERER_URL']) {
+    void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
+  } else {
+    void win.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+}
+
+function registerIpc(svc: DocumentService): void {
+  ipcMain.handle('docs:list', () => svc.listDocuments());
+
+  ipcMain.handle('docs:add', async () => {
+    const result = await dialog.showOpenDialog(win!, {
+      title: 'Add a document to DocGit',
+      filters: [{ name: 'Word documents', extensions: ['docx'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return svc.addDocument(result.filePaths[0]!);
+  });
+
+  ipcMain.handle('docs:open', (_e, documentId: string) => shell.openPath(svc.documentPath(documentId)));
+  ipcMain.handle('docs:graph', (_e, documentId: string) => svc.getGraph(documentId));
+
+  ipcMain.handle('version:save', (_e, documentId: string, message?: string) => svc.saveVersion(documentId, message));
+  ipcMain.handle('version:diff', (_e, fromId: string, toId: string) => ({
+    diff: svc.diff(fromId, toId),
+    fromLabel: svc.commitLabel(fromId),
+    toLabel: svc.commitLabel(toId),
+  }));
+  ipcMain.handle('version:divergence', (_e, commitId: string) => svc.divergence(commitId));
+  ipcMain.handle('version:restore', (_e, documentId: string, commitId: string) =>
+    svc.restoreVersion(documentId, commitId),
+  );
+  ipcMain.handle('version:openCopy', async (_e, commitId: string) => {
+    const path = svc.exportVersion(commitId);
+    await shell.openPath(path);
+    return path;
+  });
+
+  ipcMain.handle('branch:create', (_e, documentId: string, name: string, fromCommitId: string) =>
+    svc.createBranch(documentId, name, fromCommitId),
+  );
+  ipcMain.handle('branch:switch', (_e, documentId: string, branchId: string) =>
+    svc.switchBranch(documentId, branchId),
+  );
+  ipcMain.handle('branch:rename', (_e, documentId: string, branchId: string, name: string) =>
+    svc.renameBranch(documentId, branchId, name),
+  );
+  ipcMain.handle('branch:color', (_e, documentId: string, branchId: string, color: string) =>
+    svc.setBranchColor(documentId, branchId, color),
+  );
+  ipcMain.handle('branch:archive', (_e, documentId: string, branchId: string, archived: boolean) =>
+    svc.setBranchArchived(documentId, branchId, archived),
+  );
+
+  ipcMain.handle(
+    'send:mark',
+    (_e, documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
+      svc.markSent(documentId, commitId, info),
+  );
+}
+
+/**
+ * Headless smoke mode (DOCGIT_SMOKE=1): exercises the full stack inside
+ * Electron's runtime — node:sqlite, core engine, service — then exits.
+ * Used by CI and pre-flight checks; never shows a window.
+ */
+async function runSmokeTest(): Promise<void> {
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { zipSync, strToU8 } = await import('fflate');
+
+  const dir = mkdtempSync(join(tmpdir(), 'docgit-electron-smoke-'));
+  try {
+    const makeDocx = (paras: string[]): Uint8Array => {
+      const body = paras.map((t) => `<w:p><w:r><w:t xml:space="preserve">${t}</w:t></w:r></w:p>`).join('');
+      return zipSync({
+        '[Content_Types].xml': strToU8(
+          '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        ),
+        'word/document.xml': strToU8(
+          `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`,
+        ),
+      });
+    };
+
+    const docPath = join(dir, 'smoke.docx');
+    writeFileSync(docPath, makeDocx(['Clause one.', 'Clause two.']));
+
+    const events: string[] = [];
+    const svc = new DocumentService(join(dir, 'docgit.db'), (id) => events.push(id));
+    const doc = svc.addDocument(docPath);
+
+    writeFileSync(docPath, makeDocx(['Clause one, amended.', 'Clause two.', 'Clause three.']));
+    const v2 = svc.saveVersion(doc.id, 'amendments');
+
+    const graph = svc.getGraph(doc.id);
+    if (graph.commits.length !== 2) throw new Error(`expected 2 commits, got ${graph.commits.length}`);
+
+    const diff = svc.diff(graph.commits[0]!.id, graph.commits[1]!.id);
+    if (diff.summary.modified !== 1 || diff.summary.added !== 1) {
+      throw new Error(`unexpected diff summary: ${JSON.stringify(diff.summary)}`);
+    }
+
+    const branch = svc.createBranch(doc.id, 'Client B variant', graph.commits[0]!.id);
+    svc.markSent(doc.id, v2.commit.id, { recipient: 'Acme', channel: 'email' });
+    const after = svc.getGraph(doc.id);
+    if (after.branches.length !== 2) throw new Error('branch not created');
+    if (after.sends.length !== 1) throw new Error('send not recorded');
+    if (after.document.currentBranchId !== branch.id) throw new Error('branch not current');
+
+    svc.dispose();
+    console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
+    app.exit(0);
+  } catch (err) {
+    console.error('SMOKE FAILED:', err);
+    app.exit(1);
+  }
+}
+
+/**
+ * Boot check (DOCGIT_BOOT_CHECK=1): loads the real renderer in a hidden
+ * window against a throwaway store and exits non-zero if the page fails to
+ * load or logs errors — catches renderer/preload wiring breakage in CI.
+ */
+async function runBootCheck(): Promise<void> {
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const dir = mkdtempSync(join(tmpdir(), 'docgit-bootcheck-'));
+  const errors: string[] = [];
+
+  service = new DocumentService(join(dir, 'docgit.db'), notifyRenderer);
+  registerIpc(service);
+
+  const hidden = new BrowserWindow({
+    show: false,
+    webPreferences: { preload: join(__dirname, '../preload/index.js') },
+  });
+  win = hidden;
+  hidden.webContents.on('console-message', (...args: unknown[]) => {
+    const detail = args[1];
+    const level = typeof detail === 'object' && detail !== null ? (detail as { level?: string }).level : args[1];
+    if (level === 'error' || level === 3) errors.push(JSON.stringify(args.slice(1)));
+  });
+  hidden.webContents.on('render-process-gone', (_e, details) => {
+    errors.push(`renderer gone: ${details.reason}`);
+  });
+
+  try {
+    await hidden.loadFile(join(__dirname, '../renderer/index.html'));
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    if (errors.length > 0) throw new Error(errors.join('\n'));
+    console.log('BOOT CHECK OK: renderer loaded cleanly');
+    app.exit(0);
+  } catch (err) {
+    console.error('BOOT CHECK FAILED:', err);
+    app.exit(1);
+  }
+}
+
+void app.whenReady().then(() => {
+  if (process.env['DOCGIT_SMOKE'] === '1') {
+    void runSmokeTest();
+    return;
+  }
+  if (process.env['DOCGIT_BOOT_CHECK'] === '1') {
+    void runBootCheck();
+    return;
+  }
+  service = new DocumentService(join(app.getPath('userData'), 'docgit.db'), notifyRenderer);
+  registerIpc(service);
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  app.quit();
+});
+
+app.on('will-quit', () => {
+  service?.dispose();
+});
