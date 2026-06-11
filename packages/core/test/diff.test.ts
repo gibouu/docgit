@@ -8,7 +8,7 @@ describe('diffModels — paragraph-level content diff', () => {
   it('reports identical documents as fully unchanged', () => {
     const m = modelOf(['a', 'b', 'c']);
     const { changes, summary } = diffModels(m, modelOf(['a', 'b', 'c']));
-    expect(summary).toEqual({ added: 0, removed: 0, modified: 0, moved: 0, unchanged: 3 });
+    expect(summary).toEqual({ added: 0, removed: 0, modified: 0, moved: 0, unchanged: 3, formatting: 0 });
     expect(changes.every((c) => c.type === 'unchanged')).toBe(true);
   });
 
@@ -103,6 +103,16 @@ describe('diffModels — paragraph-level content diff', () => {
     );
     const { summary } = diffModels(accepted, tracked);
     expect(summary).toMatchObject({ added: 0, removed: 0, modified: 0, unchanged: 1 });
+  });
+
+  it('reports style-only changes as formatting, keeping content unchanged primary', () => {
+    const styled = (style?: string): DocModel => ({
+      kind: 'text',
+      blocks: [{ type: 'paragraph', text: 'Same exact words.', ...(style ? { style } : {}) }],
+    });
+    const { changes, summary } = diffModels(styled('Normal'), styled('Heading1'));
+    expect(summary).toMatchObject({ added: 0, removed: 0, modified: 0, unchanged: 1, formatting: 1 });
+    expect(changes[0]!.formatting).toEqual({ fromStyle: 'Normal', toStyle: 'Heading1' });
   });
 
   it('meets the performance bar: two ~1500-paragraph documents diff in under 2s', () => {

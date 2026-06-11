@@ -5,6 +5,21 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./model": {
+      "types": "./dist/model/types.d.ts",
+      "default": "./dist/model/types.js"
+    },
+    "./diff": {
+      "types": "./dist/diff/diff.d.ts",
+      "default": "./dist/diff/diff.js"
+    },
+    "./package.json": "./package.json"
+  },
   "bin": {
     "docgit": "./dist/cli.js"
   },
@@ -17,7 +32,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "better-sqlite3": "^11.6.0",
     "commander": "^12.1.0",
     "diff": "^8.0.4",
     "fast-xml-parser": "^4.5.0",
@@ -25,9 +39,8 @@
     "picocolors": "^1.1.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.9.0",
     "typescript": "^5.6.3",
-    "vitest": "^2.1.4"
+    "vitest": "^3.2.6"
   }
 }

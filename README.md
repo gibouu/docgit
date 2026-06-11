@@ -20,6 +20,12 @@ DocGit gives professionals who iterate on high-stakes documents (contracts, busi
 pnpm install
 pnpm build
 pnpm test
+
+# run the macOS app (dev mode, hot reload)
+pnpm --filter @docgit/desktop dev
+
+# headless verification of the app stack (used by CI)
+pnpm --filter @docgit/desktop smoke
 ```
 
 See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec and milestone plan.

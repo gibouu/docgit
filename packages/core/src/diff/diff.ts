@@ -21,6 +21,12 @@ export interface WordSpan {
   kind: 'same' | 'added' | 'removed';
 }
 
+export interface FormattingChange {
+  fromStyle?: string;
+  toStyle?: string;
+  numberingChanged?: boolean;
+}
+
 export interface Change {
   type: ChangeType;
   /** Index in the old document (absent for pure additions). */
@@ -31,6 +37,12 @@ export interface Change {
   newBlock?: Block;
   /** Word-level highlighting, present on "modified" changes. */
   spans?: WordSpan[];
+  /**
+   * Set when the paragraph's style/numbering differs between the two sides,
+   * independent of content. Content changes stay primary; the UI shows these
+   * in a collapsible section.
+   */
+  formatting?: FormattingChange;
 }
 
 export interface DiffSummary {
@@ -39,6 +51,8 @@ export interface DiffSummary {
   modified: number;
   moved: number;
   unchanged: number;
+  /** Blocks whose formatting (style/numbering) changed, regardless of content. */
+  formatting: number;
 }
 
 export interface DocDiff {
@@ -106,8 +120,26 @@ export function diffModels(oldModel: DocModel, newModel: DocModel): DocDiff {
   flushPending([]);
 
   detectMoves(changes);
+  detectFormattingChanges(changes);
 
   return { changes, summary: summarize(changes) };
+}
+
+/** Flag style/numbering differences on pairs whose content matched or was paired. */
+function detectFormattingChanges(changes: Change[]): void {
+  for (const change of changes) {
+    const { oldBlock, newBlock } = change;
+    if (!oldBlock || !newBlock || oldBlock.type !== 'paragraph' || newBlock.type !== 'paragraph') continue;
+    const styleChanged = (oldBlock.style ?? '') !== (newBlock.style ?? '');
+    const numberingChanged =
+      JSON.stringify(oldBlock.numbering ?? null) !== JSON.stringify(newBlock.numbering ?? null);
+    if (styleChanged || numberingChanged) {
+      change.formatting = {
+        ...(styleChanged ? { fromStyle: oldBlock.style, toStyle: newBlock.style } : {}),
+        ...(numberingChanged ? { numberingChanged: true } : {}),
+      };
+    }
+  }
 }
 
 /**
@@ -193,8 +225,11 @@ function detectMoves(changes: Change[]): void {
 }
 
 function summarize(changes: Change[]): DiffSummary {
-  const summary: DiffSummary = { added: 0, removed: 0, modified: 0, moved: 0, unchanged: 0 };
-  for (const change of changes) summary[change.type]++;
+  const summary: DiffSummary = { added: 0, removed: 0, modified: 0, moved: 0, unchanged: 0, formatting: 0 };
+  for (const change of changes) {
+    summary[change.type]++;
+    if (change.formatting) summary.formatting++;
+  }
   return summary;
 }
 
