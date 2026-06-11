@@ -101,7 +101,7 @@ async function waitFor(pred: () => boolean, timeoutMs: number): Promise<boolean>
 }
 
 async function runSmokeTest(): Promise<void> {
-  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+  const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { zipSync, strToU8 } = await import('fflate');
 
@@ -154,6 +154,19 @@ async function runSmokeTest(): Promise<void> {
     renameSync(tmpPath, docPath);
     const noticed = await waitFor(() => svc.getGraph(doc.id).commits.length > before, 8000);
     if (!noticed) throw new Error('atomic save (rename over file) was not versioned');
+
+    // Safety snapshot (#16): even if a save slips past the watcher entirely,
+    // switching branches must rescue the disk content, never destroy it.
+    const { parseDocx } = await import('@docgit/core');
+    writeFileSync(docPath, makeDocx(['Branch wording.', 'Edit the watcher never saw.']));
+    const mainBranch = svc.getGraph(doc.id).branches.find((b) => b.name === 'Main')!;
+    svc.switchBranch(doc.id, mainBranch.id); // overwrites disk with Main head
+    svc.switchBranch(doc.id, branch.id); // back to the variant
+    const restored = readFileSync(docPath);
+    const texts = parseDocx(restored).blocks.map((b) => ('text' in b ? b.text : ''));
+    if (!texts.includes('Edit the watcher never saw.')) {
+      throw new Error('unversioned disk content was destroyed by branch switch');
+    }
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);

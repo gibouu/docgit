@@ -100,6 +100,7 @@ export class DocumentService {
    * branch AND is written back to the file on disk.
    */
   restoreVersion(documentId: string, commitId: string): CommitResult {
+    this.snapshotDiskBeforeOverwrite(documentId);
     const result = this.store.restoreVersion(documentId, commitId);
     if (result.created) {
       this.writeFileFromCommit(documentId, result.commit.id);
@@ -124,6 +125,7 @@ export class DocumentService {
   // ── Branches ───────────────────────────────────────────────────────────
 
   createBranch(documentId: string, name: string, fromCommitId: string): BranchRow {
+    this.snapshotDiskBeforeOverwrite(documentId);
     const branch = this.store.createBranch(documentId, name, fromCommitId);
     this.writeFileFromCommit(documentId, fromCommitId);
     this.onChanged(documentId);
@@ -132,6 +134,7 @@ export class DocumentService {
 
   /** Switch the working branch and sync the file on disk to that branch's latest version. */
   switchBranch(documentId: string, branchId: string): BranchRow {
+    this.snapshotDiskBeforeOverwrite(documentId);
     const branch = this.store.switchBranch(documentId, branchId);
     if (branch.headCommitId) this.writeFileFromCommit(documentId, branch.headCommitId);
     this.onChanged(documentId);
@@ -184,6 +187,18 @@ export class DocumentService {
     }
   }
 
+  /**
+   * Last line of defense before the app overwrites the file on disk: commit
+   * whatever the file currently contains onto the branch being left. If the
+   * watcher already captured it this is a content-identical no-op — but if
+   * any save slipped past the watcher, it is rescued here instead of being
+   * destroyed by the overwrite.
+   */
+  private snapshotDiskBeforeOverwrite(documentId: string): void {
+    const doc = this.store.getDocument(documentId);
+    this.commitPath(doc.path, 'Saved', AUTOSAVE_COALESCE_MS);
+  }
+
   private writeFileFromCommit(documentId: string, commitId: string): void {
     const doc = this.store.getDocument(documentId);
     const commit = this.store.getCommit(commitId);
@@ -202,6 +217,10 @@ export class DocumentService {
       depth: 0,
       // Only our document is interesting; skip sibling files entirely.
       ignored: (path) => path !== dir && basename(path) !== name,
+      // Poll mtimes instead of trusting FSEvents: Word's multi-step save and
+      // iCloud-synced folders (Desktop/Documents) can swallow native events.
+      usePolling: true,
+      interval: 1000,
       // Wait for the write to settle before snapshotting.
       awaitWriteFinish: { stabilityThreshold: 700, pollInterval: 120 },
     });
