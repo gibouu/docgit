@@ -12,7 +12,6 @@ type DialogState =
   | { kind: 'branch'; from: CommitRow }
   | { kind: 'send'; commit: CommitRow }
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
-  | { kind: 'save' }
   | null;
 
 export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
@@ -77,9 +76,22 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
         </button>
         <div className="docview-title">
           <h1>{doc.name}</h1>
-          <span className="docview-branch-current" style={{ ['--dg-pill' as string]: currentBranch?.color }}>
-            on {currentBranch?.name}
-          </span>
+          <label className="branch-switcher" style={{ ['--dg-pill' as string]: currentBranch?.color }}>
+            <span className="branch-switcher-dot" style={{ background: currentBranch?.color }} />
+            <select
+              value={graph.document.currentBranchId}
+              onChange={(e) => void window.docgit.switchBranch(doc.id, e.target.value)}
+              title="Switch branch — the document file follows"
+            >
+              {graph.branches
+                .filter((b) => !b.archived || b.id === graph.document.currentBranchId)
+                .map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+            </select>
+          </label>
         </div>
         <div className="docview-actions">
           {hasArchived && (
@@ -88,9 +100,6 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               archived
             </label>
           )}
-          <button type="button" className="btn" onClick={() => setDialog({ kind: 'save' })}>
-            Save version now
-          </button>
           <button type="button" className="btn btn-primary" onClick={() => void window.docgit.openDocument(doc.id)}>
             Open in Word
           </button>
@@ -154,15 +163,6 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
         </aside>
       </div>
 
-      {dialog?.kind === 'save' && (
-        <SaveDialog
-          onClose={() => setDialog(null)}
-          onSave={async (message) => {
-            await window.docgit.saveVersion(doc.id, message);
-            setDialog(null);
-          }}
-        />
-      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
@@ -341,36 +341,6 @@ function BranchPanel({ graph }: { graph: DocumentGraph }) {
         Select a version in the tree to open, branch, restore, or mark it as sent.
       </p>
     </div>
-  );
-}
-
-function SaveDialog(props: { onClose: () => void; onSave: (message: string) => Promise<void> }) {
-  const [message, setMessage] = useState('');
-  const submit = () => void props.onSave(message.trim() || 'Saved manually');
-  return (
-    <Modal title="Save this version" onClose={props.onClose}>
-      <p className="modal-hint">
-        A short note to find it later — e.g. “Draft sent for review”, “Fees updated to 2026 rates”
-      </p>
-      <input
-        autoFocus
-        className="input"
-        placeholder="What changed?"
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit();
-        }}
-      />
-      <div className="modal-actions">
-        <button type="button" className="btn" onClick={props.onClose}>
-          Cancel
-        </button>
-        <button type="button" className="btn btn-primary" onClick={submit}>
-          Save version
-        </button>
-      </div>
-    </Modal>
   );
 }
 

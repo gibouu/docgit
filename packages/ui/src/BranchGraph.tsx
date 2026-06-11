@@ -41,8 +41,16 @@ export function BranchGraph(props: BranchGraphProps) {
 
   const layout = useMemo(() => {
     const visibleBranches = branches.filter((b) => showArchived || !b.archived);
+    // The first branch (Main) is the trunk: it takes the center lane and runs
+    // straight down; later branches alternate right, left, right… so variants
+    // read as parallel lines beside the trunk.
+    const [trunk, ...rest] = visibleBranches;
+    const right: typeof rest = [];
+    const left: typeof rest = [];
+    rest.forEach((b, i) => (i % 2 === 0 ? right : left).push(b));
+    const laneOrder = trunk ? [...left.reverse(), trunk, ...right] : [];
     const laneByBranch = new Map<string, number>();
-    visibleBranches.forEach((b, i) => laneByBranch.set(b.id, i));
+    laneOrder.forEach((b, i) => laneByBranch.set(b.id, i));
     const branchById = new Map(branches.map((b) => [b.id, b]));
     const sendsByCommit = new Map<string, SendRow[]>();
     for (const send of sends) {
