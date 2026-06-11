@@ -1,0 +1,11 @@
+{
+  "name": "@docgit/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DocGit macOS desktop app (Milestone 2 — not yet implemented)",
+  "scripts": {
+    "build": "echo 'desktop: nothing to build yet'",
+    "test": "echo 'desktop: no tests yet'",
+    "typecheck": "echo 'desktop: nothing to typecheck yet'"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@docgit/office-addin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "DocGit Office.js add-in for Word/Excel/PowerPoint (Milestone 3+ — not yet implemented)",
+  "scripts": {
+    "build": "echo 'office-addin: nothing to build yet'",
+    "test": "echo 'office-addin: no tests yet'",
+    "typecheck": "echo 'office-addin: nothing to typecheck yet'"
+  }
+}
