@@ -1,0 +1,33 @@
+{
+  "name": "@docgit/core",
+  "version": "0.1.0",
+  "description": "DocGit core engine: document adapters, normalized model, content-addressed snapshot store, diff engine.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "docgit": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.6.0",
+    "commander": "^12.1.0",
+    "diff": "^8.0.4",
+    "fast-xml-parser": "^4.5.0",
+    "fflate": "^0.8.2",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}
