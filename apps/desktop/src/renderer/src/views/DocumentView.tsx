@@ -71,19 +71,15 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
 
   const compareBranchToMain = async (branch: BranchRow) => {
     if (!trunk?.headCommitId || !branch.headCommitId) return;
-    if (trunk.headCommitId === branch.headCommitId) return;
     setSelectedIds([]);
     const result = await window.docgit.getDiff(trunk.headCommitId, branch.headCommitId);
     setComparison({ ...result, fromLabel: `${trunk.name} — latest`, toLabel: `${branch.name} — latest` });
   };
 
+  // Always offered while working on a variant — identical heads simply show
+  // an all-unchanged comparison, which is itself an answer.
   const canCompareToMain =
-    currentBranch &&
-    trunk &&
-    currentBranch.id !== trunk.id &&
-    !!currentBranch.headCommitId &&
-    !!trunk.headCommitId &&
-    currentBranch.headCommitId !== trunk.headCommitId;
+    currentBranch && trunk && currentBranch.id !== trunk.id && !!currentBranch.headCommitId && !!trunk.headCommitId;
 
   return (
     <main className="docview">
@@ -178,6 +174,7 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               onBranch={() => setDialog({ kind: 'branch', from: selected[0]! })}
               onRestore={() => void askRestore(selected[0]!)}
               onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
+              onSwitchTo={(branchId) => void window.docgit.switchBranch(doc.id, branchId)}
             />
           ) : (
             <BranchPanel graph={graph} onCompareToMain={(b) => void compareBranchToMain(b)} />
@@ -242,11 +239,17 @@ function VersionDetails(props: {
   onBranch: () => void;
   onRestore: () => void;
   onSend: () => void;
+  onSwitchTo: (branchId: string) => void;
 }) {
   const { commit, graph } = props;
   const branch = graph.branches.find((b) => b.id === commit.branchId);
   const sends = graph.sends.filter((s) => s.commitId === commit.id);
   const isHead = branch?.headCommitId === commit.id;
+  // Branches whose tip is this version and that aren't the working branch —
+  // selecting another branch's tip is how you jump onto that branch.
+  const switchableBranches = graph.branches.filter(
+    (b) => b.headCommitId === commit.id && b.id !== graph.document.currentBranchId && !b.archived,
+  );
 
   return (
     <div className="version-details">
@@ -280,8 +283,13 @@ function VersionDetails(props: {
       </dl>
 
       <div className="version-actions">
-        <button type="button" className="btn" onClick={props.onOpenCopy}>
-          Open a copy
+        {switchableBranches.map((b) => (
+          <button key={b.id} type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(b.id)}>
+            Work on “{b.name}”
+          </button>
+        ))}
+        <button type="button" className="btn" onClick={props.onOpenCopy} title="Opens a read-only temp copy — edits there are not tracked">
+          Preview a copy
         </button>
         <button type="button" className="btn" onClick={props.onBranch}>
           Branch from here
