@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CommitRow, DocDiff, DocumentGraph, DocumentSummary } from '@docgit/core';
+import type { BranchRow, CommitRow, DocDiff, DocumentGraph, DocumentSummary } from '@docgit/core';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
 
@@ -67,6 +67,23 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
 
   const currentBranch = graph.branches.find((b) => b.id === graph.document.currentBranchId);
   const hasArchived = graph.branches.some((b) => b.archived);
+  const trunk = graph.branches[0]; // position 0 — Main
+
+  const compareBranchToMain = async (branch: BranchRow) => {
+    if (!trunk?.headCommitId || !branch.headCommitId) return;
+    if (trunk.headCommitId === branch.headCommitId) return;
+    setSelectedIds([]);
+    const result = await window.docgit.getDiff(trunk.headCommitId, branch.headCommitId);
+    setComparison({ ...result, fromLabel: `${trunk.name} — latest`, toLabel: `${branch.name} — latest` });
+  };
+
+  const canCompareToMain =
+    currentBranch &&
+    trunk &&
+    currentBranch.id !== trunk.id &&
+    !!currentBranch.headCommitId &&
+    !!trunk.headCommitId &&
+    currentBranch.headCommitId !== trunk.headCommitId;
 
   return (
     <main className="docview">
@@ -99,6 +116,11 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               archived
             </label>
+          )}
+          {canCompareToMain && (
+            <button type="button" className="btn" onClick={() => void compareBranchToMain(currentBranch)}>
+              Compare with {trunk.name}
+            </button>
           )}
           <button type="button" className="btn btn-primary" onClick={() => void window.docgit.openDocument(doc.id)}>
             Open in Word
@@ -158,7 +180,7 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
             />
           ) : (
-            <BranchPanel graph={graph} />
+            <BranchPanel graph={graph} onCompareToMain={(b) => void compareBranchToMain(b)} />
           )}
         </aside>
       </div>
@@ -279,14 +301,21 @@ function VersionDetails(props: {
 
 const SWATCHES = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16'];
 
-function BranchPanel({ graph }: { graph: DocumentGraph }) {
+function BranchPanel({ graph, onCompareToMain }: { graph: DocumentGraph; onCompareToMain: (b: BranchRow) => void }) {
   const docId = graph.document.id;
+  const trunk = graph.branches[0];
   return (
     <div className="branch-panel">
       <h2>Branches</h2>
       <ul>
         {graph.branches.map((branch) => {
           const isCurrent = branch.id === graph.document.currentBranchId;
+          const comparable =
+            trunk &&
+            branch.id !== trunk.id &&
+            !!branch.headCommitId &&
+            !!trunk.headCommitId &&
+            branch.headCommitId !== trunk.headCommitId;
           return (
             <li key={branch.id} className={branch.archived ? 'is-archived' : ''}>
               <span className="branch-swatch" style={{ background: branch.color }} />
@@ -295,6 +324,11 @@ function BranchPanel({ graph }: { graph: DocumentGraph }) {
                 {branch.archived ? ' (archived)' : ''}
               </span>
               <span className="branch-tools">
+                {comparable && (
+                  <button type="button" className="btn btn-mini" onClick={() => onCompareToMain(branch)}>
+                    Compare to {trunk!.name}
+                  </button>
+                )}
                 {!isCurrent && !branch.archived && (
                   <button type="button" className="btn btn-mini" onClick={() => void window.docgit.switchBranch(docId, branch.id)}>
                     Switch to

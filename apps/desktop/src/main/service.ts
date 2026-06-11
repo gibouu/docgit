@@ -13,7 +13,7 @@ import {
 import chokidar, { type FSWatcher } from 'chokidar';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 /**
  * Main-process façade over the core engine. Owns the snapshot store and a
@@ -31,6 +31,7 @@ const AUTOSAVE_COALESCE_MS = 15 * 60_000;
 export class DocumentService {
   private store: SnapshotStore;
   private watchers = new Map<string, FSWatcher>();
+  private watchersReady: Promise<void>[] = [];
 
   constructor(
     dbPath: string,
@@ -191,14 +192,31 @@ export class DocumentService {
 
   private watch(doc: DocumentRow): void {
     if (this.watchers.has(doc.id)) return;
-    const watcher = chokidar.watch(doc.path, {
+    // Watch the parent directory, not the file: Word saves atomically
+    // (temp file + rename over the original), which permanently detaches any
+    // watcher bound to the file's inode. A directory watch survives the swap.
+    const dir = dirname(doc.path);
+    const name = basename(doc.path);
+    const watcher = chokidar.watch(dir, {
       ignoreInitial: true,
-      // Word saves via temp-file swap; wait for the write to settle.
+      depth: 0,
+      // Only our document is interesting; skip sibling files entirely.
+      ignored: (path) => path !== dir && basename(path) !== name,
+      // Wait for the write to settle before snapshotting.
       awaitWriteFinish: { stabilityThreshold: 700, pollInterval: 120 },
     });
-    watcher.on('add', () => this.autoCommit(doc));
-    watcher.on('change', () => this.autoCommit(doc));
+    const onEvent = (path: string) => {
+      if (basename(path) === name) this.autoCommit(doc);
+    };
+    watcher.on('add', onEvent);
+    watcher.on('change', onEvent);
     this.watchers.set(doc.id, watcher);
+    this.watchersReady.push(new Promise((resolve) => watcher.once('ready', resolve)));
+  }
+
+  /** Resolves once all watchers finished their initial scan — saves before this can be missed. */
+  whenWatchersReady(): Promise<void> {
+    return Promise.all(this.watchersReady).then(() => undefined);
   }
 
   private autoCommit(doc: DocumentRow): void {

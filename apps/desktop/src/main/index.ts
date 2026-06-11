@@ -91,6 +91,15 @@ function registerIpc(svc: DocumentService): void {
  * Electron's runtime — node:sqlite, core engine, service — then exits.
  * Used by CI and pre-flight checks; never shows a window.
  */
+async function waitFor(pred: () => boolean, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (pred()) return true;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return pred();
+}
+
 async function runSmokeTest(): Promise<void> {
   const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
@@ -134,6 +143,17 @@ async function runSmokeTest(): Promise<void> {
     if (after.branches.length !== 2) throw new Error('branch not created');
     if (after.sends.length !== 1) throw new Error('send not recorded');
     if (after.document.currentBranchId !== branch.id) throw new Error('branch not current');
+
+    // Atomic-save regression (#14): Word saves via temp-file + rename, which
+    // must still be noticed by the watcher and produce a version.
+    await svc.whenWatchersReady();
+    const { renameSync } = await import('node:fs');
+    const before = svc.getGraph(doc.id).commits.length;
+    const tmpPath = join(dir, 'smoke-atomic.tmp');
+    writeFileSync(tmpPath, makeDocx(['Branch wording.', 'Clause two.', 'Added after atomic swap.']));
+    renameSync(tmpPath, docPath);
+    const noticed = await waitFor(() => svc.getGraph(doc.id).commits.length > before, 8000);
+    if (!noticed) throw new Error('atomic save (rename over file) was not versioned');
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
