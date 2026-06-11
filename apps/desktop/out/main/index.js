@@ -2396,6 +2396,12 @@ class SnapshotStore {
   /**
    * Snapshot a document onto its current branch. Content identical to the
    * branch head is a no-op (`created: false`).
+   *
+   * With `coalesceWindowMs`, a burst of saves merges into one rolling
+   * version: if the branch head has the same message, is younger than the
+   * window, and nothing observable depends on it (no sends, no children, no
+   * branch forked there), the head is *replaced* instead of extended — so a
+   * Word work session yields one version, not one per ⌘S.
    */
   commit(filePath, fileBytes, model, opts = {}) {
     const doc = this.addDocument(filePath);
@@ -2407,17 +2413,55 @@ class SnapshotStore {
       return { commit: head, created: false };
     }
     const fileHash = sha256(fileBytes);
+    const payload = {
+      modelHash,
+      modelJson,
+      fileHash,
+      fileBytes,
+      message: opts.message ?? null,
+      author: opts.author ?? null
+    };
+    if (head && opts.coalesceWindowMs !== void 0 && this.canCoalesce(head, payload.message, opts.coalesceWindowMs)) {
+      return { commit: this.replaceCommit(head, payload), created: true };
+    }
     return {
-      commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, {
-        modelHash,
-        modelJson,
-        fileHash,
-        fileBytes,
-        message: opts.message ?? null,
-        author: opts.author ?? null
-      }),
+      commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, payload),
       created: true
     };
+  }
+  /** A head can be coalesced only when nothing observable depends on it. */
+  canCoalesce(head, message, windowMs) {
+    if (head.message !== message)
+      return false;
+    if (Date.now() - Date.parse(head.createdAt) > windowMs)
+      return false;
+    const sends = this.db.prepare("SELECT COUNT(*) AS n FROM sends WHERE commit_id = ?").get(head.id);
+    if (Number(sends.n) > 0)
+      return false;
+    const children = this.db.prepare("SELECT COUNT(*) AS n FROM commits WHERE parent_id = ?").get(head.id);
+    if (Number(children.n) > 0)
+      return false;
+    const forks = this.db.prepare("SELECT COUNT(*) AS n FROM branches WHERE head_commit_id = ? AND id != ?").get(head.id, head.branchId);
+    return Number(forks.n) === 0;
+  }
+  /** Swap the branch head for a fresh commit with the same parent — the coalesce primitive. */
+  replaceCommit(head, data) {
+    const createdAt = nowIso();
+    const id = sha256(JSON.stringify([head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, createdAt]));
+    this.db.exec("BEGIN");
+    try {
+      this.putObject(data.modelHash, Buffer.from(data.modelJson, "utf8"));
+      this.putObject(data.fileHash, Buffer.from(data.fileBytes));
+      this.db.prepare(`INSERT INTO commits (id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, data.author, createdAt);
+      this.db.prepare("UPDATE branches SET head_commit_id = ? WHERE id = ?").run(id, head.branchId);
+      this.db.prepare("DELETE FROM commits WHERE id = ?").run(head.id);
+      this.db.exec("COMMIT");
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+    return this.getCommit(id);
   }
   /**
    * Re-commit the content of an old version onto the current branch
@@ -3292,6 +3336,7 @@ function wordSpans(oldText, newText) {
     kind: part.added ? "added" : part.removed ? "removed" : "same"
   }));
 }
+const AUTOSAVE_COALESCE_MS = 15 * 6e4;
 class DocumentService {
   constructor(dbPath, onChanged) {
     this.onChanged = onChanged;
@@ -3402,7 +3447,7 @@ class DocumentService {
     return send;
   }
   // ── Internals ──────────────────────────────────────────────────────────
-  commitPath(path, message) {
+  commitPath(path, message, coalesceWindowMs) {
     let bytes;
     try {
       bytes = node_fs.readFileSync(path);
@@ -3411,7 +3456,10 @@ class DocumentService {
     }
     try {
       const model = parseDocx(bytes);
-      return this.store.commit(path, bytes, model, message ? { message } : {});
+      return this.store.commit(path, bytes, model, {
+        ...message !== void 0 ? { message } : {},
+        ...coalesceWindowMs !== void 0 ? { coalesceWindowMs } : {}
+      });
     } catch {
       return void 0;
     }
@@ -3433,7 +3481,7 @@ class DocumentService {
     this.watchers.set(doc.id, watcher);
   }
   autoCommit(doc) {
-    const result = this.commitPath(doc.path, "Saved");
+    const result = this.commitPath(doc.path, "Saved", AUTOSAVE_COALESCE_MS);
     if (result?.created) this.onChanged(doc.id);
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CommitRow, DocDiff, DocumentGraph, DocumentSummary } from '@docgit/core';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
@@ -12,6 +12,7 @@ type DialogState =
   | { kind: 'branch'; from: CommitRow }
   | { kind: 'send'; commit: CommitRow }
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
+  | { kind: 'save' }
   | null;
 
 export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
@@ -20,6 +21,8 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
   const [comparison, setComparison] = useState<{ diff: DocDiff; fromLabel: string; toLabel: string } | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [showArchived, setShowArchived] = useState(false);
+
+  const treeScrollRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     setGraph(await window.docgit.getGraph(doc.id));
@@ -31,6 +34,12 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
       if (id === doc.id) void refresh();
     });
   }, [doc.id, refresh]);
+
+  // Newest version lives at the bottom — keep it in view as the tree grows.
+  useEffect(() => {
+    const el = treeScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [graph?.commits.length]);
 
   const commitsById = useMemo(() => new Map((graph?.commits ?? []).map((c) => [c.id, c])), [graph]);
   const selected = selectedIds.map((id) => commitsById.get(id)).filter(Boolean) as CommitRow[];
@@ -79,7 +88,7 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               archived
             </label>
           )}
-          <button type="button" className="btn" onClick={() => void window.docgit.saveVersion(doc.id, 'Saved manually')}>
+          <button type="button" className="btn" onClick={() => setDialog({ kind: 'save' })}>
             Save version now
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void window.docgit.openDocument(doc.id)}>
@@ -90,7 +99,7 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
 
       <div className="docview-body">
         <section className="docview-tree">
-          <div className="docview-tree-scroll">
+          <div className="docview-tree-scroll" ref={treeScrollRef}>
             <BranchGraph
               branches={graph.branches}
               commits={graph.commits}
@@ -102,7 +111,8 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
             />
           </div>
           <footer className="docview-tree-hint">
-            Click a version to inspect it — ⌘-click a second one to compare.
+            First version at the top, newest at the bottom. Click a version to inspect it — ⌘-click a second one to
+            compare.
           </footer>
         </section>
 
@@ -144,6 +154,15 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
         </aside>
       </div>
 
+      {dialog?.kind === 'save' && (
+        <SaveDialog
+          onClose={() => setDialog(null)}
+          onSave={async (message) => {
+            await window.docgit.saveVersion(doc.id, message);
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
@@ -322,6 +341,36 @@ function BranchPanel({ graph }: { graph: DocumentGraph }) {
         Select a version in the tree to open, branch, restore, or mark it as sent.
       </p>
     </div>
+  );
+}
+
+function SaveDialog(props: { onClose: () => void; onSave: (message: string) => Promise<void> }) {
+  const [message, setMessage] = useState('');
+  const submit = () => void props.onSave(message.trim() || 'Saved manually');
+  return (
+    <Modal title="Save this version" onClose={props.onClose}>
+      <p className="modal-hint">
+        A short note to find it later — e.g. “Draft sent for review”, “Fees updated to 2026 rates”
+      </p>
+      <input
+        autoFocus
+        className="input"
+        placeholder="What changed?"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+        }}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={submit}>
+          Save version
+        </button>
+      </div>
+    </Modal>
   );
 }
 

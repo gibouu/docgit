@@ -21,6 +21,13 @@ import { join } from 'node:path';
  * automatically becomes a new version. All mutations notify the renderer
  * through `onChanged`.
  */
+/**
+ * Auto-saves within this window collapse into one rolling "Saved" version,
+ * so a Word editing session reads as one version in the tree — not one node
+ * per ⌘S. Versions with sends, forks, or children are never coalesced.
+ */
+const AUTOSAVE_COALESCE_MS = 15 * 60_000;
+
 export class DocumentService {
   private store: SnapshotStore;
   private watchers = new Map<string, FSWatcher>();
@@ -158,7 +165,7 @@ export class DocumentService {
 
   // ── Internals ──────────────────────────────────────────────────────────
 
-  private commitPath(path: string, message?: string): CommitResult | undefined {
+  private commitPath(path: string, message?: string, coalesceWindowMs?: number): CommitResult | undefined {
     let bytes: Buffer;
     try {
       bytes = readFileSync(path);
@@ -167,7 +174,10 @@ export class DocumentService {
     }
     try {
       const model = parseDocx(bytes);
-      return this.store.commit(path, bytes, model, message ? { message } : {});
+      return this.store.commit(path, bytes, model, {
+        ...(message !== undefined ? { message } : {}),
+        ...(coalesceWindowMs !== undefined ? { coalesceWindowMs } : {}),
+      });
     } catch {
       return undefined; // not a parseable docx right now (partial write) — skip
     }
@@ -192,7 +202,7 @@ export class DocumentService {
   }
 
   private autoCommit(doc: DocumentRow): void {
-    const result = this.commitPath(doc.path, 'Saved');
+    const result = this.commitPath(doc.path, 'Saved', AUTOSAVE_COALESCE_MS);
     if (result?.created) this.onChanged(doc.id);
   }
 }

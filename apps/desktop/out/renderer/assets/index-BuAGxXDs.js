@@ -7077,7 +7077,15 @@ function BranchGraph(props) {
       list.push(send);
       sendsByCommit.set(send.commitId, list);
     }
-    const ordered = commits.filter((c) => laneByBranch.has(c.branchId)).slice().sort((a, b) => a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
+    const headsByCommit = /* @__PURE__ */ new Map();
+    for (const branch of visibleBranches) {
+      if (!branch.headCommitId)
+        continue;
+      const list = headsByCommit.get(branch.headCommitId) ?? [];
+      list.push(branch);
+      headsByCommit.set(branch.headCommitId, list);
+    }
+    const ordered = commits.filter((c) => laneByBranch.has(c.branchId)).slice().sort((a, b) => a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0);
     const rows2 = ordered.map((commit, i) => {
       const branch = branchById.get(commit.branchId);
       return {
@@ -7085,8 +7093,8 @@ function BranchGraph(props) {
         lane: laneByBranch.get(commit.branchId),
         y: PAD_TOP + i * ROW_H,
         color: branch.color,
-        isHead: branch.headCommitId === commit.id,
         branch,
+        headOf: headsByCommit.get(commit.id) ?? [],
         sends: sendsByCommit.get(commit.id) ?? []
       };
     });
@@ -7109,14 +7117,16 @@ function BranchGraph(props) {
     const y1 = row.y;
     const x2 = laneX(parent.lane);
     const y2 = parent.y;
-    const d = x1 === x2 ? `M ${x1} ${y1} L ${x2} ${y2}` : `M ${x1} ${y1} C ${x1} ${y1 + ROW_H * 0.6}, ${x2} ${y2 - ROW_H * 0.6}, ${x2} ${y2}`;
+    const midY = (y1 + y2) / 2;
+    const d = x1 === x2 ? `M ${x1} ${y1} L ${x2} ${y2}` : `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
     return jsxRuntimeExports.jsx("path", { d, className: "dg-graph-edge", style: { stroke: row.color } }, row.commit.id);
   }), rows.map((row) => {
     const selected = selectedIds.includes(row.commit.id);
-    return jsxRuntimeExports.jsxs("g", { children: [selected && jsxRuntimeExports.jsx("circle", { cx: laneX(row.lane), cy: row.y, r: NODE_R + 5, className: "dg-graph-halo", style: { stroke: row.color } }), jsxRuntimeExports.jsx("circle", { cx: laneX(row.lane), cy: row.y, r: NODE_R, className: "dg-graph-node", style: { fill: row.isHead ? row.color : "var(--dg-paper, #faf7f2)", stroke: row.color } })] }, row.commit.id);
+    const isTip = row.headOf.length > 0;
+    return jsxRuntimeExports.jsxs("g", { children: [selected && jsxRuntimeExports.jsx("circle", { cx: laneX(row.lane), cy: row.y, r: NODE_R + 5, className: "dg-graph-halo", style: { stroke: row.color } }), jsxRuntimeExports.jsx("circle", { cx: laneX(row.lane), cy: row.y, r: NODE_R, className: "dg-graph-node", style: { fill: isTip ? row.color : "var(--dg-paper, #faf7f2)", stroke: row.color } })] }, row.commit.id);
   })] }), jsxRuntimeExports.jsx("div", { className: "dg-graph-labels", style: { left: graphW }, children: rows.map((row) => {
     const selected = selectedIds.includes(row.commit.id);
-    return jsxRuntimeExports.jsxs("button", { type: "button", className: `dg-graph-row${selected ? " is-selected" : ""}`, style: { top: row.y - ROW_H / 2, height: ROW_H, ["--dg-row-accent"]: row.color }, onClick: (e) => onSelect(row.commit, e.metaKey || e.shiftKey), children: [jsxRuntimeExports.jsxs("span", { className: "dg-graph-row-main", children: [jsxRuntimeExports.jsx("span", { className: "dg-graph-message", children: row.commit.message ?? "Saved version" }), row.isHead && jsxRuntimeExports.jsxs("span", { className: `dg-branch-pill${row.branch.id === currentBranchId ? " is-current" : ""}`, style: { ["--dg-pill"]: row.color }, children: [row.branch.name, row.branch.archived ? " · archived" : ""] })] }), jsxRuntimeExports.jsxs("span", { className: "dg-graph-row-meta", children: [jsxRuntimeExports.jsx("span", { className: "dg-graph-time", children: formatWhen(row.commit.createdAt) }), row.commit.author && jsxRuntimeExports.jsx("span", { className: "dg-graph-author", children: row.commit.author }), row.sends.map((send) => jsxRuntimeExports.jsxs("span", { className: "dg-send-badge", title: `Sent to ${send.recipient}${send.channel ? ` via ${send.channel}` : ""} on ${formatWhen(send.sentAt)}`, children: ["✉ ", send.recipient] }, send.id))] })] }, row.commit.id);
+    return jsxRuntimeExports.jsxs("button", { type: "button", className: `dg-graph-row${selected ? " is-selected" : ""}`, style: { top: row.y - ROW_H / 2, height: ROW_H, ["--dg-row-accent"]: row.color }, onClick: (e) => onSelect(row.commit, e.metaKey || e.shiftKey), children: [jsxRuntimeExports.jsxs("span", { className: "dg-graph-row-main", children: [jsxRuntimeExports.jsx("span", { className: "dg-graph-message", children: row.commit.message ?? "Saved version" }), row.headOf.map((branch) => jsxRuntimeExports.jsxs("span", { className: `dg-branch-pill${branch.id === currentBranchId ? " is-current" : ""}`, style: { ["--dg-pill"]: branch.color }, children: [branch.name, branch.archived ? " · archived" : ""] }, branch.id))] }), jsxRuntimeExports.jsxs("span", { className: "dg-graph-row-meta", children: [jsxRuntimeExports.jsx("span", { className: "dg-graph-time", children: formatWhen(row.commit.createdAt) }), row.commit.author && jsxRuntimeExports.jsx("span", { className: "dg-graph-author", children: row.commit.author }), row.sends.map((send) => jsxRuntimeExports.jsxs("span", { className: "dg-send-badge", title: `Sent to ${send.recipient}${send.channel ? ` via ${send.channel}` : ""} on ${formatWhen(send.sentAt)}`, children: ["✉ ", send.recipient] }, send.id))] })] }, row.commit.id);
   }) })] });
 }
 function formatWhen(iso) {
@@ -7211,6 +7221,7 @@ function DocumentView({ document: doc, onBack }) {
   const [comparison, setComparison] = reactExports.useState(null);
   const [dialog, setDialog] = reactExports.useState(null);
   const [showArchived, setShowArchived] = reactExports.useState(false);
+  const treeScrollRef = reactExports.useRef(null);
   const refresh = reactExports.useCallback(async () => {
     setGraph(await window.docgit.getGraph(doc.id));
   }, [doc.id]);
@@ -7220,6 +7231,10 @@ function DocumentView({ document: doc, onBack }) {
       if (id === doc.id) void refresh();
     });
   }, [doc.id, refresh]);
+  reactExports.useEffect(() => {
+    const el = treeScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [graph?.commits.length]);
   const commitsById = reactExports.useMemo(() => new Map((graph?.commits ?? []).map((c) => [c.id, c])), [graph]);
   const selected = selectedIds.map((id) => commitsById.get(id)).filter(Boolean);
   const onSelect = reactExports.useCallback((commit, additive) => {
@@ -7256,13 +7271,13 @@ function DocumentView({ document: doc, onBack }) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("input", { type: "checkbox", checked: showArchived, onChange: (e) => setShowArchived(e.target.checked) }),
           "archived"
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "btn", onClick: () => void window.docgit.saveVersion(doc.id, "Saved manually"), children: "Save version now" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "btn", onClick: () => setDialog({ kind: "save" }), children: "Save version now" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "btn btn-primary", onClick: () => void window.docgit.openDocument(doc.id), children: "Open in Word" })
       ] })
     ] }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "docview-body", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "docview-tree", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "docview-tree-scroll", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "docview-tree-scroll", ref: treeScrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           BranchGraph,
           {
             branches: graph.branches,
@@ -7274,7 +7289,7 @@ function DocumentView({ document: doc, onBack }) {
             showArchived
           }
         ) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: "docview-tree-hint", children: "Click a version to inspect it — ⌘-click a second one to compare." })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("footer", { className: "docview-tree-hint", children: "First version at the top, newest at the bottom. Click a version to inspect it — ⌘-click a second one to compare." })
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx("aside", { className: "docview-panel", children: comparison ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "panel-bar", children: [
@@ -7305,6 +7320,16 @@ function DocumentView({ document: doc, onBack }) {
         }
       ) : /* @__PURE__ */ jsxRuntimeExports.jsx(BranchPanel, { graph }) })
     ] }),
+    dialog?.kind === "save" && /* @__PURE__ */ jsxRuntimeExports.jsx(
+      SaveDialog,
+      {
+        onClose: () => setDialog(null),
+        onSave: async (message) => {
+          await window.docgit.saveVersion(doc.id, message);
+          setDialog(null);
+        }
+      }
+    ),
     dialog?.kind === "branch" && /* @__PURE__ */ jsxRuntimeExports.jsx(
       BranchDialog,
       {
@@ -7440,6 +7465,30 @@ function BranchPanel({ graph }) {
       ] }, branch.id);
     }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "branch-panel-hint", children: "Select a version in the tree to open, branch, restore, or mark it as sent." })
+  ] });
+}
+function SaveDialog(props) {
+  const [message, setMessage] = reactExports.useState("");
+  const submit = () => void props.onSave(message.trim() || "Saved manually");
+  return /* @__PURE__ */ jsxRuntimeExports.jsxs(Modal, { title: "Save this version", onClose: props.onClose, children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "modal-hint", children: "A short note to find it later — e.g. “Draft sent for review”, “Fees updated to 2026 rates”" }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx(
+      "input",
+      {
+        autoFocus: true,
+        className: "input",
+        placeholder: "What changed?",
+        value: message,
+        onChange: (e) => setMessage(e.target.value),
+        onKeyDown: (e) => {
+          if (e.key === "Enter") submit();
+        }
+      }
+    ),
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-actions", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "btn", onClick: props.onClose, children: "Cancel" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("button", { type: "button", className: "btn btn-primary", onClick: submit, children: "Save version" })
+    ] })
   ] });
 }
 function BranchDialog(props) {

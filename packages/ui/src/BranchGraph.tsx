@@ -3,8 +3,10 @@ import type { BranchRow, CommitRow, SendRow } from '@docgit/core';
 
 /**
  * The version tree: a git-graph-style visualization rendered as SVG lanes
- * (one per branch, colored) with labeled nodes. Newest version at the top.
- * Selection is controlled by the parent — up to two nodes for comparison.
+ * (one per branch, colored) with labeled nodes. Reads like a timeline: the
+ * first version at the top, newest at the bottom, branches forking downward
+ * while Main continues as a straight vertical line. Selection is controlled
+ * by the parent — up to two nodes for comparison.
  */
 
 export interface BranchGraphProps {
@@ -28,8 +30,9 @@ interface Row {
   lane: number;
   y: number;
   color: string;
-  isHead: boolean;
   branch: BranchRow;
+  /** Every branch whose tip is this commit — includes branches just forked here. */
+  headOf: BranchRow[];
   sends: SendRow[];
 }
 
@@ -48,10 +51,19 @@ export function BranchGraph(props: BranchGraphProps) {
       sendsByCommit.set(send.commitId, list);
     }
 
+    const headsByCommit = new Map<string, BranchRow[]>();
+    for (const branch of visibleBranches) {
+      if (!branch.headCommitId) continue;
+      const list = headsByCommit.get(branch.headCommitId) ?? [];
+      list.push(branch);
+      headsByCommit.set(branch.headCommitId, list);
+    }
+
+    // Oldest first: time flows top → bottom, like reading a timeline.
     const ordered = commits
       .filter((c) => laneByBranch.has(c.branchId))
       .slice()
-      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
 
     const rows: Row[] = ordered.map((commit, i) => {
       const branch = branchById.get(commit.branchId)!;
@@ -60,8 +72,8 @@ export function BranchGraph(props: BranchGraphProps) {
         lane: laneByBranch.get(commit.branchId)!,
         y: PAD_TOP + i * ROW_H,
         color: branch.color,
-        isHead: branch.headCommitId === commit.id,
         branch,
+        headOf: headsByCommit.get(commit.id) ?? [],
         sends: sendsByCommit.get(commit.id) ?? [],
       };
     });
@@ -91,14 +103,16 @@ export function BranchGraph(props: BranchGraphProps) {
           const y1 = row.y;
           const x2 = laneX(parent.lane);
           const y2 = parent.y;
+          const midY = (y1 + y2) / 2;
           const d =
             x1 === x2
               ? `M ${x1} ${y1} L ${x2} ${y2}`
-              : `M ${x1} ${y1} C ${x1} ${y1 + ROW_H * 0.6}, ${x2} ${y2 - ROW_H * 0.6}, ${x2} ${y2}`;
+              : `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
           return <path key={row.commit.id} d={d} className="dg-graph-edge" style={{ stroke: row.color }} />;
         })}
         {rows.map((row) => {
           const selected = selectedIds.includes(row.commit.id);
+          const isTip = row.headOf.length > 0;
           return (
             <g key={row.commit.id}>
               {selected && (
@@ -109,7 +123,7 @@ export function BranchGraph(props: BranchGraphProps) {
                 cy={row.y}
                 r={NODE_R}
                 className="dg-graph-node"
-                style={{ fill: row.isHead ? row.color : 'var(--dg-paper, #faf7f2)', stroke: row.color }}
+                style={{ fill: isTip ? row.color : 'var(--dg-paper, #faf7f2)', stroke: row.color }}
               />
             </g>
           );
@@ -129,15 +143,16 @@ export function BranchGraph(props: BranchGraphProps) {
             >
               <span className="dg-graph-row-main">
                 <span className="dg-graph-message">{row.commit.message ?? 'Saved version'}</span>
-                {row.isHead && (
+                {row.headOf.map((branch) => (
                   <span
-                    className={`dg-branch-pill${row.branch.id === currentBranchId ? ' is-current' : ''}`}
-                    style={{ ['--dg-pill' as string]: row.color }}
+                    key={branch.id}
+                    className={`dg-branch-pill${branch.id === currentBranchId ? ' is-current' : ''}`}
+                    style={{ ['--dg-pill' as string]: branch.color }}
                   >
-                    {row.branch.name}
-                    {row.branch.archived ? ' · archived' : ''}
+                    {branch.name}
+                    {branch.archived ? ' · archived' : ''}
                   </span>
-                )}
+                ))}
               </span>
               <span className="dg-graph-row-meta">
                 <span className="dg-graph-time">{formatWhen(row.commit.createdAt)}</span>
