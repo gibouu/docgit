@@ -126,6 +126,71 @@ describe('SnapshotStore — branches, sends, restore', () => {
     expect(graph.document.currentBranchId).toBe(graph.branches[1]!.id);
   });
 
+  describe('auto-save coalescing', () => {
+    const autoSave = (texts: string[], windowMs = 60_000) => {
+      const bytes = docxFromParagraphs(texts);
+      return store.commit(docPath, bytes, parseDocx(bytes), { message: 'Saved', coalesceWindowMs: windowMs });
+    };
+
+    it('merges a burst of saves into one rolling version with the latest content', () => {
+      snapshot(['base'], 'Added to DocGit');
+      autoSave(['base', 'edit 1']);
+      autoSave(['base', 'edit 1', 'edit 2']);
+      const result = autoSave(['base', 'final']);
+
+      const log = store.log(docPath);
+      expect(log).toHaveLength(2); // base + one coalesced "Saved"
+      expect(log[0]!.id).toBe(result.commit.id);
+      expect(log[0]!.message).toBe('Saved');
+      expect(store.getModel(log[0]!).blocks.map((b) => 'text' in b && b.text)).toEqual(['base', 'final']);
+      // chain stays intact: coalesced head still points at base
+      expect(log[0]!.parentId).toBe(log[1]!.id);
+    });
+
+    it('does not coalesce across different messages (manual saves stay permanent)', () => {
+      snapshot(['base'], 'Added to DocGit');
+      autoSave(['base', 'work']);
+      snapshot(['base', 'work', 'milestone'], 'Sent draft wording to client');
+      autoSave(['base', 'work', 'milestone', 'more work']);
+      expect(store.log(docPath).map((c) => c.message)).toEqual([
+        'Saved',
+        'Sent draft wording to client',
+        'Saved',
+        'Added to DocGit',
+      ]);
+    });
+
+    it('never coalesces a version that was marked as sent', () => {
+      snapshot(['base'], 'Added to DocGit');
+      const sent = autoSave(['base', 'v-sent']);
+      store.markSent(sent.commit.id, { recipient: 'Acme' });
+      autoSave(['base', 'v-after-send']);
+      const log = store.log(docPath);
+      expect(log).toHaveLength(3);
+      expect(log[1]!.id).toBe(sent.commit.id);
+    });
+
+    it('never coalesces a version another branch forked from', () => {
+      snapshot(['base'], 'Added to DocGit');
+      const fork = autoSave(['base', 'fork point']);
+      const doc = store.getDocument(fork.commit.documentId);
+      store.createBranch(doc.id, 'Variant', fork.commit.id);
+      const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
+      store.switchBranch(doc.id, main.id);
+      autoSave(['base', 'after fork']);
+      expect(store.log(docPath)).toHaveLength(3);
+      expect(store.getCommit(fork.commit.id)).toBeTruthy();
+    });
+
+    it('does not coalesce outside the time window', async () => {
+      snapshot(['base'], 'Added to DocGit');
+      autoSave(['base', 'old session'], 10);
+      await new Promise((r) => setTimeout(r, 30));
+      autoSave(['base', 'new session'], 10);
+      expect(store.log(docPath)).toHaveLength(3);
+    });
+  });
+
   it('listDocuments reports version and branch counts', () => {
     snapshot(['v1']);
     snapshot(['v2']);

@@ -220,12 +220,18 @@ export class SnapshotStore {
   /**
    * Snapshot a document onto its current branch. Content identical to the
    * branch head is a no-op (`created: false`).
+   *
+   * With `coalesceWindowMs`, a burst of saves merges into one rolling
+   * version: if the branch head has the same message, is younger than the
+   * window, and nothing observable depends on it (no sends, no children, no
+   * branch forked there), the head is *replaced* instead of extended — so a
+   * Word work session yields one version, not one per ⌘S.
    */
   commit(
     filePath: string,
     fileBytes: Uint8Array,
     model: DocModel,
-    opts: { message?: string; author?: string } = {},
+    opts: { message?: string; author?: string; coalesceWindowMs?: number } = {},
   ): CommitResult {
     const doc = this.addDocument(filePath);
     const branch = this.getBranch(doc.currentBranchId);
@@ -238,17 +244,77 @@ export class SnapshotStore {
     }
 
     const fileHash = sha256(fileBytes);
+    const payload = {
+      modelHash,
+      modelJson,
+      fileHash,
+      fileBytes,
+      message: opts.message ?? null,
+      author: opts.author ?? null,
+    };
+
+    if (
+      head &&
+      opts.coalesceWindowMs !== undefined &&
+      this.canCoalesce(head, payload.message, opts.coalesceWindowMs)
+    ) {
+      return { commit: this.replaceCommit(head, payload), created: true };
+    }
+
     return {
-      commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, {
-        modelHash,
-        modelJson,
-        fileHash,
-        fileBytes,
-        message: opts.message ?? null,
-        author: opts.author ?? null,
-      }),
+      commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, payload),
       created: true,
     };
+  }
+
+  /** A head can be coalesced only when nothing observable depends on it. */
+  private canCoalesce(head: CommitRow, message: string | null, windowMs: number): boolean {
+    if (head.message !== message) return false;
+    if (Date.now() - Date.parse(head.createdAt) > windowMs) return false;
+    const sends = this.db.prepare('SELECT COUNT(*) AS n FROM sends WHERE commit_id = ?').get(head.id) as { n: number };
+    if (Number(sends.n) > 0) return false;
+    const children = this.db.prepare('SELECT COUNT(*) AS n FROM commits WHERE parent_id = ?').get(head.id) as { n: number };
+    if (Number(children.n) > 0) return false;
+    const forks = this.db
+      .prepare('SELECT COUNT(*) AS n FROM branches WHERE head_commit_id = ? AND id != ?')
+      .get(head.id, head.branchId) as { n: number };
+    return Number(forks.n) === 0;
+  }
+
+  /** Swap the branch head for a fresh commit with the same parent — the coalesce primitive. */
+  private replaceCommit(
+    head: CommitRow,
+    data: {
+      modelHash: string;
+      fileHash: string;
+      modelJson: string;
+      fileBytes: Uint8Array;
+      message: string | null;
+      author: string | null;
+    },
+  ): CommitRow {
+    const createdAt = nowIso();
+    const id = sha256(
+      JSON.stringify([head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, createdAt]),
+    );
+    this.db.exec('BEGIN');
+    try {
+      this.putObject(data.modelHash, Buffer.from(data.modelJson, 'utf8'));
+      this.putObject(data.fileHash, Buffer.from(data.fileBytes));
+      this.db
+        .prepare(
+          `INSERT INTO commits (id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(id, head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, data.author, createdAt);
+      this.db.prepare('UPDATE branches SET head_commit_id = ? WHERE id = ?').run(id, head.branchId);
+      this.db.prepare('DELETE FROM commits WHERE id = ?').run(head.id);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    return this.getCommit(id);
   }
 
   /**
