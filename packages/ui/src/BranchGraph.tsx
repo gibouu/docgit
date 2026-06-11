@@ -139,38 +139,52 @@ export function BranchGraph(props: BranchGraphProps) {
       </svg>
 
       <div className="dg-graph-labels" style={{ left: graphW }}>
-        {rows.map((row) => {
+        {rows.map((row, index) => {
           const selected = selectedIds.includes(row.commit.id);
+          // Keep the tree quiet: full labels only where they orient the reader —
+          // the first version, each branch's latest, sent versions, selection.
+          const labelled = index === 0 || row.headOf.length > 0 || row.sends.length > 0 || selected;
           return (
             <button
               key={row.commit.id}
               type="button"
-              className={`dg-graph-row${selected ? ' is-selected' : ''}`}
+              className={`dg-graph-row${selected ? ' is-selected' : ''}${labelled ? '' : ' is-quiet'}`}
               style={{ top: row.y - ROW_H / 2, height: ROW_H, ['--dg-row-accent' as string]: row.color }}
               onClick={(e) => onSelect(row.commit, e.metaKey || e.shiftKey)}
+              title={`${row.commit.message ?? 'Saved version'} — ${formatWhen(row.commit.createdAt)}`}
             >
-              <span className="dg-graph-row-main">
-                <span className="dg-graph-message">{row.commit.message ?? 'Saved version'}</span>
-                {row.headOf.map((branch) => (
-                  <span
-                    key={branch.id}
-                    className={`dg-branch-pill${branch.id === currentBranchId ? ' is-current' : ''}`}
-                    style={{ ['--dg-pill' as string]: branch.color }}
-                  >
-                    {branch.name}
-                    {branch.archived ? ' · archived' : ''}
+              {labelled ? (
+                <>
+                  <span className="dg-graph-row-main">
+                    <span className="dg-graph-message" style={{ color: row.color }}>
+                      {row.commit.message ?? 'Saved version'}
+                    </span>
+                    {row.headOf.map((branch) => (
+                      <span
+                        key={branch.id}
+                        className={`dg-branch-pill${branch.id === currentBranchId ? ' is-current' : ''}`}
+                        style={{ ['--dg-pill' as string]: branch.color }}
+                      >
+                        {branch.name}
+                        {branch.archived ? ' · archived' : ''}
+                      </span>
+                    ))}
                   </span>
-                ))}
-              </span>
-              <span className="dg-graph-row-meta">
-                <span className="dg-graph-time">{formatWhen(row.commit.createdAt)}</span>
-                {row.commit.author && <span className="dg-graph-author">{row.commit.author}</span>}
-                {row.sends.map((send) => (
-                  <span key={send.id} className="dg-send-badge" title={`Sent to ${send.recipient}${send.channel ? ` via ${send.channel}` : ''} on ${formatWhen(send.sentAt)}`}>
-                    ✉ {send.recipient}
+                  <span className="dg-graph-row-meta">
+                    <span className="dg-graph-time">{formatWhen(row.commit.createdAt)}</span>
+                    {row.commit.author && <span className="dg-graph-author">{row.commit.author}</span>}
+                    {row.sends.map((send) => (
+                      <span key={send.id} className="dg-send-badge" title={`Sent to ${send.recipient}${send.channel ? ` via ${send.channel}` : ''} on ${formatWhen(send.sentAt)}`}>
+                        ✉ {send.recipient}
+                      </span>
+                    ))}
                   </span>
-                ))}
-              </span>
+                </>
+              ) : (
+                <span className="dg-graph-row-meta">
+                  <span className="dg-graph-time">{formatWhen(row.commit.createdAt)}</span>
+                </span>
+              )}
             </button>
           );
         })}

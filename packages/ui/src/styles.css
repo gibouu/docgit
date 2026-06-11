@@ -86,6 +86,14 @@
   border-left-color: var(--dg-row-accent, var(--dg-accent));
 }
 
+.dg-graph-row.is-quiet {
+  opacity: 0.55;
+}
+
+.dg-graph-row.is-quiet:hover {
+  opacity: 1;
+}
+
 .dg-graph-row-main {
   display: flex;
   align-items: baseline;

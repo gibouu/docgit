@@ -13,6 +13,8 @@ const api = {
   saveVersion: (documentId: string, message?: string) => ipcRenderer.invoke('version:save', documentId, message),
   getDiff: (fromId: string, toId: string) => ipcRenderer.invoke('version:diff', fromId, toId),
   getDivergence: (commitId: string) => ipcRenderer.invoke('version:divergence', commitId),
+  renameVersion: (documentId: string, commitId: string, message: string) =>
+    ipcRenderer.invoke('version:rename', documentId, commitId, message),
   restoreVersion: (documentId: string, commitId: string) =>
     ipcRenderer.invoke('version:restore', documentId, commitId),
   openVersionCopy: (commitId: string) => ipcRenderer.invoke('version:openCopy', commitId),

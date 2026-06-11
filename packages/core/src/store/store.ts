@@ -399,6 +399,13 @@ export class SnapshotStore {
     return rowToCommit(row);
   }
 
+  /** Rename a version. A renamed auto-save stops matching 'Saved', which also pins it against coalescing. */
+  setCommitMessage(commitId: string, message: string): CommitRow {
+    this.getCommit(commitId); // validate
+    this.db.prepare('UPDATE commits SET message = ? WHERE id = ?').run(message, commitId);
+    return this.getCommit(commitId);
+  }
+
   getModel(commit: CommitRow): DocModel {
     return JSON.parse(Buffer.from(this.getObject(commit.modelHash)).toString('utf8')) as DocModel;
   }

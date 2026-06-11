@@ -191,6 +191,19 @@ describe('SnapshotStore — branches, sends, restore', () => {
     });
   });
 
+  it('renames a version, which also pins it against coalescing', () => {
+    snapshot(['base'], 'Added to DocGit');
+    const bytes1 = docxFromParagraphs(['base', 'work']);
+    const auto = store.commit(docPath, bytes1, parseDocx(bytes1), { message: 'Saved', coalesceWindowMs: 60_000 });
+    store.setCommitMessage(auto.commit.id, 'Fees v2 negotiated');
+
+    const bytes2 = docxFromParagraphs(['base', 'work', 'more']);
+    store.commit(docPath, bytes2, parseDocx(bytes2), { message: 'Saved', coalesceWindowMs: 60_000 });
+
+    const log = store.log(docPath);
+    expect(log.map((c) => c.message)).toEqual(['Saved', 'Fees v2 negotiated', 'Added to DocGit']);
+  });
+
   it('listDocuments reports version and branch counts', () => {
     snapshot(['v1']);
     snapshot(['v2']);

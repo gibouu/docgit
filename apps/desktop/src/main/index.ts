@@ -54,6 +54,9 @@ function registerIpc(svc: DocumentService): void {
     toLabel: svc.commitLabel(toId),
   }));
   ipcMain.handle('version:divergence', (_e, commitId: string) => svc.divergence(commitId));
+  ipcMain.handle('version:rename', (_e, documentId: string, commitId: string, message: string) =>
+    svc.renameVersion(documentId, commitId, message),
+  );
   ipcMain.handle('version:restore', (_e, documentId: string, commitId: string) =>
     svc.restoreVersion(documentId, commitId),
   );

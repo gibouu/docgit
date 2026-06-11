@@ -95,6 +95,11 @@ export class DocumentService {
     return this.store.divergence(commitId);
   }
 
+  renameVersion(documentId: string, commitId: string, message: string): void {
+    this.store.setCommitMessage(commitId, message);
+    this.onChanged(documentId);
+  }
+
   /**
    * Restore an old version: its content becomes a new version on the current
    * branch AND is written back to the file on disk.
@@ -220,9 +225,9 @@ export class DocumentService {
       // Poll mtimes instead of trusting FSEvents: Word's multi-step save and
       // iCloud-synced folders (Desktop/Documents) can swallow native events.
       usePolling: true,
-      interval: 1000,
+      interval: 300,
       // Wait for the write to settle before snapshotting.
-      awaitWriteFinish: { stabilityThreshold: 700, pollInterval: 120 },
+      awaitWriteFinish: { stabilityThreshold: 400, pollInterval: 100 },
     });
     const onEvent = (path: string) => {
       if (basename(path) === name) this.autoCommit(doc);
