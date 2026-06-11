@@ -175,6 +175,10 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               onRestore={() => void askRestore(selected[0]!)}
               onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
               onSwitchTo={(branchId) => void window.docgit.switchBranch(doc.id, branchId)}
+              onRename={(commit) => {
+                const message = window.prompt('Rename this version', commit.message ?? '');
+                if (message?.trim()) void window.docgit.renameVersion(doc.id, commit.id, message.trim());
+              }}
             />
           ) : (
             <BranchPanel graph={graph} onCompareToMain={(b) => void compareBranchToMain(b)} />
@@ -240,6 +244,7 @@ function VersionDetails(props: {
   onRestore: () => void;
   onSend: () => void;
   onSwitchTo: (branchId: string) => void;
+  onRename: (commit: CommitRow) => void;
 }) {
   const { commit, graph } = props;
   const branch = graph.branches.find((b) => b.id === commit.branchId);
@@ -253,7 +258,12 @@ function VersionDetails(props: {
 
   return (
     <div className="version-details">
-      <h2>{commit.message ?? 'Saved version'}</h2>
+      <h2>
+        {commit.message ?? 'Saved version'}{' '}
+        <button type="button" className="btn btn-mini" onClick={() => props.onRename(commit)} title="Rename this version">
+          ✎ Rename
+        </button>
+      </h2>
       <dl>
         <div>
           <dt>When</dt>

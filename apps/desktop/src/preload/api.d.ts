@@ -18,6 +18,7 @@ export interface DocgitApi {
   saveVersion(documentId: string, message?: string): Promise<CommitResult>;
   getDiff(fromId: string, toId: string): Promise<{ diff: DocDiff; fromLabel: string; toLabel: string }>;
   getDivergence(commitId: string): Promise<number | null>;
+  renameVersion(documentId: string, commitId: string, message: string): Promise<void>;
   restoreVersion(documentId: string, commitId: string): Promise<CommitResult>;
   openVersionCopy(commitId: string): Promise<string>;
 
