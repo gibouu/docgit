@@ -8,8 +8,21 @@ import type {
   LinkableOccurrence,
   LinkRow,
   SendRow,
+  UpstreamStatus,
   ValueFormat,
 } from '@docgit/core';
+
+export interface RecipientSummary {
+  recipient: string;
+  sendCount: number;
+  lastSentAt: string;
+}
+
+export interface RecipientSend extends SendRow {
+  documentId: string;
+  documentName: string;
+  commitMessage: string | null;
+}
 
 export interface LinkInfo {
   link: LinkRow;
@@ -52,6 +65,11 @@ export interface DocgitApi {
     commitId: string,
     info: { recipient: string; channel?: string; note?: string },
   ): Promise<SendRow>;
+
+  branchStatuses(documentId: string): Promise<{ branchId: string; status: UpstreamStatus | null }[]>;
+  markBranchSynced(documentId: string, branchId: string): Promise<BranchRow>;
+  recipients(): Promise<RecipientSummary[]>;
+  sendsToRecipient(recipient: string): Promise<RecipientSend[]>;
 
   listLinks(documentId: string): Promise<LinkInfo[]>;
   listWorkbooks(): Promise<DocumentSummary[]>;

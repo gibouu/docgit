@@ -191,6 +191,83 @@ describe('SnapshotStore — branches, sends, restore', () => {
     });
   });
 
+  describe('translation/variant workflow — upstream status', () => {
+    it('reports how far a branch trails the branch it forked from', () => {
+      const fork = snapshot(['EN clause one'], 'EN base').commit;
+      const doc = store.getDocument(fork.documentId);
+      const fr = store.createBranch(doc.id, 'Contract (FR)', fork.id);
+      expect(store.upstreamStatus(fr.id)).toMatchObject({ behind: 0, upstreamBranchName: 'Main' });
+
+      // EN moves on while the FR translator works.
+      const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
+      store.switchBranch(doc.id, main.id);
+      snapshot(['EN clause one, amended'], 'EN amendment');
+      snapshot(['EN clause one, amended', 'EN clause two'], 'EN new clause');
+
+      const status = store.upstreamStatus(fr.id)!;
+      expect(status).toMatchObject({ behind: 2, upstreamBranchName: 'Main' });
+      expect(status.baseCommitId).toBe(fork.id);
+      expect(store.getCommit(status.upstreamHeadCommitId).message).toBe('EN new clause');
+    });
+
+    it('marking a branch caught up resets the counter from the new base', () => {
+      const fork = snapshot(['v1'], 'base').commit;
+      const doc = store.getDocument(fork.documentId);
+      const variant = store.createBranch(doc.id, 'Variant', fork.id);
+      const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
+      store.switchBranch(doc.id, main.id);
+      snapshot(['v1', 'upstream work'], 'upstream work');
+
+      expect(store.upstreamStatus(variant.id)!.behind).toBe(1);
+      store.markSyncedWithUpstream(variant.id);
+      expect(store.upstreamStatus(variant.id)!.behind).toBe(0);
+
+      snapshot(['v1', 'upstream work', 'more'], 'more upstream');
+      expect(store.upstreamStatus(variant.id)!.behind).toBe(1);
+    });
+
+    it('the trunk has no upstream', () => {
+      const c = snapshot(['v1']).commit;
+      const doc = store.getDocument(c.documentId);
+      const main = store.listBranches(doc.id)[0]!;
+      expect(store.upstreamStatus(main.id)).toBeNull();
+    });
+
+    it('never coalesces away a commit a branch forked from or synced to', () => {
+      snapshot(['base'], 'Added to DocGit');
+      const bytes = docxFromParagraphs(['base', 'fork here']);
+      const fork = store.commit(docPath, bytes, parseDocx(bytes), { message: 'Saved', coalesceWindowMs: 60_000 }).commit;
+      const doc = store.getDocument(fork.documentId);
+      store.createBranch(doc.id, 'FR', fork.id);
+      const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
+      store.switchBranch(doc.id, main.id);
+      // Same 'Saved' message within the window — would coalesce without the guard.
+      const bytes2 = docxFromParagraphs(['base', 'fork here', 'after']);
+      store.commit(docPath, bytes2, parseDocx(bytes2), { message: 'Saved', coalesceWindowMs: 60_000 });
+      expect(store.getCommit(fork.id)).toBeTruthy();
+      expect(store.upstreamStatus(store.listBranches(doc.id).find((b) => b.name === 'FR')!.id)!.behind).toBe(1);
+    });
+  });
+
+  describe('per-recipient send history', () => {
+    it('aggregates recipients and lists everything sent to one of them', () => {
+      const v1 = snapshot(['CV v1'], 'v1').commit;
+      const v2 = snapshot(['CV v2'], 'v2').commit;
+      store.markSent(v1.id, { recipient: 'Acme', channel: 'email', sentAt: '2026-03-03T10:00:00.000Z' });
+      store.markSent(v2.id, { recipient: 'Acme', channel: 'link', sentAt: '2026-05-01T10:00:00.000Z' });
+      store.markSent(v2.id, { recipient: 'Beta Corp', sentAt: '2026-04-01T10:00:00.000Z' });
+
+      const recipients = store.recipients();
+      expect(recipients.map((r) => r.recipient)).toEqual(['Acme', 'Beta Corp']);
+      expect(recipients[0]).toMatchObject({ sendCount: 2, lastSentAt: '2026-05-01T10:00:00.000Z' });
+
+      const acme = store.sendsToRecipient('Acme');
+      expect(acme).toHaveLength(2);
+      expect(acme[0]).toMatchObject({ documentName: 'cv.docx', commitMessage: 'v2', channel: 'link' });
+      expect(acme[1]).toMatchObject({ commitMessage: 'v1', channel: 'email' });
+    });
+  });
+
   it('renames a version, which also pins it against coalescing', () => {
     snapshot(['base'], 'Added to DocGit');
     const bytes1 = docxFromParagraphs(['base', 'work']);

@@ -16,6 +16,7 @@ import {
   type LinkableOccurrence,
   type LinkRow,
   type SendRow,
+  type UpstreamStatus,
   type ValueFormat,
 } from '@docgit/core';
 import chokidar, { type FSWatcher } from 'chokidar';
@@ -194,6 +195,20 @@ export class DocumentService {
     return branch;
   }
 
+  /** Upstream status per non-archived branch (translation/variant "behind by N" badges). */
+  branchStatuses(documentId: string): { branchId: string; status: UpstreamStatus | null }[] {
+    return this.store
+      .listBranches(documentId)
+      .filter((b) => !b.archived)
+      .map((b) => ({ branchId: b.id, status: this.store.upstreamStatus(b.id) }));
+  }
+
+  markBranchSynced(documentId: string, branchId: string): BranchRow {
+    const branch = this.store.markSyncedWithUpstream(branchId);
+    this.onChanged(documentId);
+    return branch;
+  }
+
   // ── Live links (Excel → Word inline values) ───────────────────────────
 
   listWorkbooks(): DocumentSummary[] {
@@ -336,6 +351,14 @@ export class DocumentService {
     const send = this.store.markSent(commitId, info);
     this.onChanged(documentId);
     return send;
+  }
+
+  recipients() {
+    return this.store.recipients();
+  }
+
+  sendsToRecipient(recipient: string) {
+    return this.store.sendsToRecipient(recipient);
   }
 
   // ── Internals ──────────────────────────────────────────────────────────

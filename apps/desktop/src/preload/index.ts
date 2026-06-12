@@ -32,6 +32,12 @@ const api = {
   markSent: (documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
     ipcRenderer.invoke('send:mark', documentId, commitId, info),
 
+  branchStatuses: (documentId: string) => ipcRenderer.invoke('branch:statuses', documentId),
+  markBranchSynced: (documentId: string, branchId: string) =>
+    ipcRenderer.invoke('branch:markSynced', documentId, branchId),
+  recipients: () => ipcRenderer.invoke('history:recipients'),
+  sendsToRecipient: (recipient: string) => ipcRenderer.invoke('history:sends', recipient),
+
   listLinks: (documentId: string) => ipcRenderer.invoke('links:list', documentId),
   listWorkbooks: () => ipcRenderer.invoke('links:workbooks'),
   workbookSheets: (sourceDocumentId: string) => ipcRenderer.invoke('links:sheets', sourceDocumentId),

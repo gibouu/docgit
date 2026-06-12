@@ -93,6 +93,13 @@ function registerIpc(svc: DocumentService): void {
       svc.markSent(documentId, commitId, info),
   );
 
+  ipcMain.handle('branch:statuses', (_e, documentId: string) => svc.branchStatuses(documentId));
+  ipcMain.handle('branch:markSynced', (_e, documentId: string, branchId: string) =>
+    svc.markBranchSynced(documentId, branchId),
+  );
+  ipcMain.handle('history:recipients', () => svc.recipients());
+  ipcMain.handle('history:sends', (_e, recipient: string) => svc.sendsToRecipient(recipient));
+
   ipcMain.handle('links:list', (_e, documentId: string) => svc.links(documentId));
   ipcMain.handle('links:workbooks', () => svc.listWorkbooks());
   ipcMain.handle('links:sheets', (_e, sourceDocumentId: string) => svc.workbookSheets(sourceDocumentId));

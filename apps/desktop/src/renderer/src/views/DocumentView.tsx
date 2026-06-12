@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BranchRow, CommitRow, DocDiff, DocumentGraph, DocumentSummary } from '@docgit/core';
+import type { BranchRow, CommitRow, DocDiff, DocumentGraph, DocumentSummary, UpstreamStatus } from '@docgit/core';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
 import { LinksSection } from './LinksSection.js';
@@ -7,6 +7,8 @@ import { LinksSection } from './LinksSection.js';
 export interface DocumentViewProps {
   document: DocumentSummary;
   onBack: () => void;
+  /** Pre-select this version on open (e.g. arriving from the sent history). */
+  initialSelectedId?: string;
 }
 
 type DialogState =
@@ -17,9 +19,10 @@ type DialogState =
   | { kind: 'renameBranch'; branch: BranchRow }
   | null;
 
-export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
+export function DocumentView({ document: doc, onBack, initialSelectedId }: DocumentViewProps) {
   const [graph, setGraph] = useState<DocumentGraph | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statuses, setStatuses] = useState<{ branchId: string; status: UpstreamStatus | null }[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedId ? [initialSelectedId] : []);
   const [comparison, setComparison] = useState<{ diff: DocDiff; fromLabel: string; toLabel: string } | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [showArchived, setShowArchived] = useState(false);
@@ -28,6 +31,7 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
 
   const refresh = useCallback(async () => {
     setGraph(await window.docgit.getGraph(doc.id));
+    setStatuses(await window.docgit.branchStatuses(doc.id));
   }, [doc.id]);
 
   useEffect(() => {
@@ -84,6 +88,18 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
   const canCompareToMain =
     currentBranch && trunk && currentBranch.id !== trunk.id && !!currentBranch.headCommitId && !!trunk.headCommitId;
 
+  const showUpstreamChanges = async (status: UpstreamStatus) => {
+    setSelectedIds([]);
+    const result = await window.docgit.getDiff(status.baseCommitId, status.upstreamHeadCommitId);
+    setComparison({
+      ...result,
+      fromLabel: 'Where this branch last caught up',
+      toLabel: `${status.upstreamBranchName} — latest`,
+    });
+  };
+
+  const currentStatus = statuses.find((s) => s.branchId === graph.document.currentBranchId)?.status ?? null;
+
   return (
     <main className="docview">
       <header className="docview-header">
@@ -116,6 +132,16 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               archived
             </label>
+          )}
+          {currentStatus && currentStatus.behind > 0 && (
+            <button
+              type="button"
+              className="btn behind-badge"
+              title={`${currentStatus.upstreamBranchName} has changed since this branch last caught up — click to see exactly what`}
+              onClick={() => void showUpstreamChanges(currentStatus)}
+            >
+              behind {currentStatus.upstreamBranchName} by {currentStatus.behind}
+            </button>
           )}
           {canCompareToMain && (
             <button type="button" className="btn" onClick={() => void compareBranchToMain(currentBranch)}>
@@ -188,8 +214,11 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
             <>
               <BranchPanel
                 graph={graph}
+                statuses={statuses}
                 onCompareToMain={(b) => void compareBranchToMain(b)}
                 onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+                onShowUpstream={(s) => void showUpstreamChanges(s)}
+                onMarkSynced={(branchId) => void window.docgit.markBranchSynced(doc.id, branchId)}
               />
               {doc.name.toLowerCase().endsWith('.docx') && <LinksSection documentId={doc.id} />}
             </>
@@ -335,13 +364,23 @@ function VersionDetails(props: {
             Work on “{b.name}”
           </button>
         ))}
+        {commit.branchId !== graph.document.currentBranchId && (
+          <button
+            type="button"
+            className="btn"
+            title="Bring this version's content onto your current branch as a new version"
+            onClick={props.onRestore}
+          >
+            Copy to my branch
+          </button>
+        )}
         <button type="button" className="btn" onClick={props.onOpenCopy} title="Opens a read-only temp copy — edits there are not tracked">
           Preview a copy
         </button>
         <button type="button" className="btn" onClick={props.onBranch}>
           Branch from here
         </button>
-        {!isHead && (
+        {!isHead && commit.branchId === graph.document.currentBranchId && (
           <button type="button" className="btn" onClick={props.onRestore}>
             Restore
           </button>
@@ -395,21 +434,29 @@ function NameDialog(props: {
 
 function BranchPanel({
   graph,
+  statuses,
   onCompareToMain,
   onRenameBranch,
+  onShowUpstream,
+  onMarkSynced,
 }: {
   graph: DocumentGraph;
+  statuses: { branchId: string; status: UpstreamStatus | null }[];
   onCompareToMain: (b: BranchRow) => void;
   onRenameBranch: (b: BranchRow) => void;
+  onShowUpstream: (s: UpstreamStatus) => void;
+  onMarkSynced: (branchId: string) => void;
 }) {
   const docId = graph.document.id;
   const trunk = graph.branches[0];
+  const statusOf = (branchId: string) => statuses.find((s) => s.branchId === branchId)?.status ?? null;
   return (
     <div className="branch-panel">
       <h2>Branches</h2>
       <ul>
         {graph.branches.map((branch) => {
           const isCurrent = branch.id === graph.document.currentBranchId;
+          const status = statusOf(branch.id);
           const comparable =
             trunk &&
             branch.id !== trunk.id &&
@@ -422,8 +469,28 @@ function BranchPanel({
               <span className="branch-name">
                 {branch.name}
                 {branch.archived ? ' (archived)' : ''}
+                {status && status.behind > 0 && (
+                  <button
+                    type="button"
+                    className="behind-badge behind-badge-mini"
+                    title={`${status.upstreamBranchName} has ${status.behind} change${status.behind > 1 ? 's' : ''} this branch hasn't seen — click to view them`}
+                    onClick={() => onShowUpstream(status)}
+                  >
+                    behind by {status.behind}
+                  </button>
+                )}
               </span>
               <span className="branch-tools">
+                {status && status.behind > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-mini"
+                    title="Mark this branch as caught up with the upstream changes"
+                    onClick={() => onMarkSynced(branch.id)}
+                  >
+                    Caught up
+                  </button>
+                )}
                 {comparable && (
                   <button type="button" className="btn btn-mini" onClick={() => onCompareToMain(branch)}>
                     Compare to {trunk!.name}
