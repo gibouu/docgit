@@ -3,9 +3,9 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 
 export default defineConfig({
   main: {
-    // Bundle the workspace packages into the main build (they are ESM;
-    // the main bundle is CJS) — only real node_modules deps stay external.
-    plugins: [externalizeDepsPlugin({ exclude: ['@docgit/core', '@docgit/ui'] })],
+    // Bundle EVERYTHING (workspace packages and runtime deps — all pure JS)
+    // so the packaged app needs no node_modules at all.
+    plugins: [externalizeDepsPlugin({ exclude: ['@docgit/core', '@docgit/ui', 'chokidar', 'fflate'] })],
   },
   preload: {
     plugins: [externalizeDepsPlugin()],

@@ -91,6 +91,9 @@ Planned fix, in order:
   the document is open and warn before switching.*
 - **Unlink keeps an inert content control** in the .docx (harmless, invisible
   in Word). *Future: unwrap the control on unlink.*
-- **The version database** lives in Electron's userData directory under the
-  default app identity until the app is packaged (`electron-builder`), after
-  which it should migrate to a proper `DocGit` directory.
+- **The version database** lives at `~/Library/Application Support/DocGit/`
+  (migrated automatically from the pre-packaging Electron directory; the old
+  copy is left in place as a backup and can be deleted manually).
+- **The packaged app is unsigned** (no Apple Developer certificate yet) —
+  fine for locally built copies, but a downloaded copy would hit Gatekeeper.
+  Signing + notarization needed before distributing to anyone else.

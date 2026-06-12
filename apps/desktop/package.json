@@ -1,6 +1,6 @@
 {
   "name": "@docgit/desktop",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "private": true,
   "description": "DocGit macOS desktop app — the local-first document version hub.",
   "main": "out/main/index.js",
@@ -10,13 +10,9 @@
     "start": "electron-vite preview",
     "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js && DOCGIT_BOOT_CHECK=1 electron out/main/index.js",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
-    "test": "echo 'desktop: covered by smoke test (pnpm smoke) and core tests'"
-  },
-  "dependencies": {
-    "@docgit/core": "workspace:*",
-    "@docgit/ui": "workspace:*",
-    "chokidar": "^4.0.1",
-    "fflate": "^0.8.2"
+    "test": "echo 'desktop: covered by smoke test (pnpm smoke) and core tests'",
+    "dist": "electron-vite build && electron-builder --config electron-builder.yml",
+    "icon": "electron scripts/render-icon.cjs build/icon.svg build/icon-1024.png"
   },
   "devDependencies": {
     "@fontsource-variable/fraunces": "^5.1.0",
@@ -26,10 +22,15 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "electron": "^38.2.0",
+    "electron-builder": "^26.15.2",
     "electron-vite": "^3.0.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "typescript": "^5.6.3",
-    "vite": "^6.0.0"
+    "vite": "^6.0.0",
+    "@docgit/core": "workspace:*",
+    "@docgit/ui": "workspace:*",
+    "chokidar": "^4.0.1",
+    "fflate": "^0.8.2"
   }
 }
