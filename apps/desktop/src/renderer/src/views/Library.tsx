@@ -1,6 +1,32 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { DocumentInfo } from '../../../preload/api';
 import { Modal } from '../components/Modal.js';
+
+/** Document families, color-coded throughout the library. */
+const DOC_TYPES = [
+  { id: 'doc', label: 'Docs', color: '#3b6ea5' },
+  { id: 'table', label: 'Tables', color: '#2c7a4b' },
+  { id: 'slides', label: 'Slides', color: '#d97a26' },
+] as const;
+
+type DocType = (typeof DOC_TYPES)[number]['id'];
+
+function docTypeOf(doc: DocumentInfo): DocType {
+  if (doc.remoteKind === 'grist') return 'table';
+  const path = doc.path.toLowerCase();
+  if (path.endsWith('.xlsx')) return 'table';
+  if (path.endsWith('.pptx')) return 'slides';
+  return 'doc';
+}
+
+const TIME_FILTERS = [
+  { id: 'all', label: 'All time', days: null },
+  { id: 'today', label: 'Today', days: 1 },
+  { id: '7d', label: '7 days', days: 7 },
+  { id: '30d', label: '30 days', days: 30 },
+] as const;
+
+type TimeFilter = (typeof TIME_FILTERS)[number]['id'];
 
 export interface LibraryProps {
   documents: DocumentInfo[];
@@ -15,6 +41,20 @@ export interface LibraryProps {
  */
 export function Library({ documents, onOpen, onShowHistory, onRefresh }: LibraryProps) {
   const [showGrist, setShowGrist] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<DocType | 'all'>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+
+  const visible = useMemo(() => {
+    const cutoffDays = TIME_FILTERS.find((t) => t.id === timeFilter)?.days ?? null;
+    const cutoff = cutoffDays === null ? null : Date.now() - cutoffDays * 24 * 60 * 60 * 1000;
+    return documents
+      .filter((doc) => typeFilter === 'all' || docTypeOf(doc) === typeFilter)
+      .filter((doc) => cutoff === null || (doc.lastVersionAt !== null && Date.parse(doc.lastVersionAt) >= cutoff))
+      .slice()
+      .sort((a, b) => (b.lastVersionAt ?? '').localeCompare(a.lastVersionAt ?? ''));
+  }, [documents, typeFilter, timeFilter]);
+
+  const countOf = (type: DocType) => documents.filter((d) => docTypeOf(d) === type).length;
 
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
@@ -68,34 +108,92 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
           </button>
         </div>
       ) : (
-        <ul className="library-grid">
-          {documents.map((doc) => (
-            <li key={doc.id}>
-              <button type="button" className="doc-card" onClick={() => onOpen(doc)}>
-                <span className="doc-card-name">
-                  {doc.name}
-                  {doc.remoteKind && <span className="doc-card-remote"> ⛁ {doc.remoteKind}</span>}
-                </span>
-                <span className="doc-card-path">{doc.path}</span>
-                <span className="doc-card-meta">
-                  <span>
-                    {doc.versionCount} version{doc.versionCount === 1 ? '' : 's'}
-                  </span>
-                  <span>·</span>
-                  <span>
-                    {doc.branchCount} branch{doc.branchCount === 1 ? '' : 'es'}
-                  </span>
-                  {doc.lastVersionAt && (
-                    <>
-                      <span>·</span>
-                      <span>last saved {new Date(doc.lastVersionAt).toLocaleDateString()}</span>
-                    </>
-                  )}
-                </span>
+        <>
+          <div className="library-filters">
+            <span className="filter-group">
+              <button
+                type="button"
+                className={`filter-chip${typeFilter === 'all' ? ' is-active' : ''}`}
+                onClick={() => setTypeFilter('all')}
+              >
+                All · {documents.length}
               </button>
-            </li>
-          ))}
-        </ul>
+              {DOC_TYPES.map((type) =>
+                countOf(type.id) === 0 ? null : (
+                  <button
+                    key={type.id}
+                    type="button"
+                    className={`filter-chip${typeFilter === type.id ? ' is-active' : ''}`}
+                    style={{ ['--chip-color' as string]: type.color }}
+                    onClick={() => setTypeFilter(typeFilter === type.id ? 'all' : type.id)}
+                  >
+                    <span className="filter-dot" style={{ background: type.color }} />
+                    {type.label} · {countOf(type.id)}
+                  </button>
+                ),
+              )}
+            </span>
+            <span className="filter-group">
+              {TIME_FILTERS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`filter-chip${timeFilter === t.id ? ' is-active' : ''}`}
+                  onClick={() => setTimeFilter(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </span>
+          </div>
+
+          {visible.length === 0 ? (
+            <p className="library-no-match">Nothing modified in this period.</p>
+          ) : (
+            <ul className="library-list">
+              {visible.map((doc) => {
+                const type = DOC_TYPES.find((t) => t.id === docTypeOf(doc))!;
+                return (
+                  <li key={doc.id}>
+                    <button
+                      type="button"
+                      className="doc-row"
+                      style={{ ['--type-color' as string]: type.color }}
+                      onClick={() => onOpen(doc)}
+                    >
+                      <span className="doc-row-bar" />
+                      <span className="doc-row-main">
+                        <span className="doc-row-name" title={doc.name}>
+                          {doc.name}
+                          {doc.remoteKind && <span className="doc-card-remote"> ⛁ {doc.remoteKind}</span>}
+                        </span>
+                        <span className="doc-row-path" title={doc.path}>
+                          {doc.path}
+                        </span>
+                      </span>
+                      <span className="doc-row-meta">
+                        <span>
+                          {doc.versionCount} version{doc.versionCount === 1 ? '' : 's'}
+                        </span>
+                        <span>
+                          {doc.branchCount} branch{doc.branchCount === 1 ? '' : 'es'}
+                        </span>
+                        <span className="doc-row-date">
+                          {doc.lastVersionAt
+                            ? new Date(doc.lastVersionAt).toLocaleDateString(undefined, {
+                                day: 'numeric',
+                                month: 'short',
+                              })
+                            : '—'}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
     </main>
   );
