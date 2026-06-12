@@ -21,8 +21,17 @@ export {
   type DocumentGraph,
   type DocumentRow,
   type DocumentSummary,
+  type LinkRow,
   type SendRow,
 } from './store/store.js';
+export { formatValue, type ValueFormat } from './links/format.js';
+export {
+  findLinkableOccurrences,
+  insertLinkedValue,
+  listLinkIds,
+  refreshLinkedValue,
+  type LinkableOccurrence,
+} from './links/word-links.js';
 export {
   diffModels,
   diffTextModels,

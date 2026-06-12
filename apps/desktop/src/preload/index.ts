@@ -32,6 +32,17 @@ const api = {
   markSent: (documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
     ipcRenderer.invoke('send:mark', documentId, commitId, info),
 
+  listLinks: (documentId: string) => ipcRenderer.invoke('links:list', documentId),
+  listWorkbooks: () => ipcRenderer.invoke('links:workbooks'),
+  workbookSheets: (sourceDocumentId: string) => ipcRenderer.invoke('links:sheets', sourceDocumentId),
+  workbookCell: (sourceDocumentId: string, sheet: string, cellRef: string) =>
+    ipcRenderer.invoke('links:cell', sourceDocumentId, sheet, cellRef),
+  findOccurrences: (documentId: string, search: string) =>
+    ipcRenderer.invoke('links:occurrences', documentId, search),
+  createLink: (documentId: string, payload: unknown) => ipcRenderer.invoke('links:create', documentId, payload),
+  refreshLinks: (documentId: string) => ipcRenderer.invoke('links:refresh', documentId),
+  deleteLink: (documentId: string, linkId: string) => ipcRenderer.invoke('links:delete', documentId, linkId),
+
   onChanged: (callback: (documentId: string) => void) => {
     const listener = (_event: unknown, documentId: string) => callback(documentId);
     ipcRenderer.on('docgit:changed', listener);

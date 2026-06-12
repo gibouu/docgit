@@ -18,6 +18,10 @@
       "types": "./dist/diff/diff.d.ts",
       "default": "./dist/diff/diff.js"
     },
+    "./format": {
+      "types": "./dist/links/format.d.ts",
+      "default": "./dist/links/format.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

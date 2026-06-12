@@ -76,6 +76,21 @@ export interface CommitResult {
   created: boolean;
 }
 
+export interface LinkRow {
+  id: string;
+  /** The text document carrying the linked value. */
+  docDocumentId: string;
+  /** The workbook the value comes from. */
+  sourceDocumentId: string;
+  sheet: string;
+  cellRef: string;
+  /** Serialized ValueFormat. */
+  format: string;
+  lastValue: string | null;
+  lastSourceCommitId: string | null;
+  createdAt: string;
+}
+
 const BRANCH_COLORS = [
   '#6366f1', '#10b981', '#f59e0b', '#ec4899',
   '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16',
@@ -142,6 +157,19 @@ export class SnapshotStore {
         note      TEXT,
         sent_at   TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS links (
+        id                     TEXT PRIMARY KEY,
+        doc_document_id       TEXT NOT NULL REFERENCES documents(id),
+        source_document_id    TEXT NOT NULL REFERENCES documents(id),
+        sheet                 TEXT NOT NULL,
+        cell_ref              TEXT NOT NULL,
+        format                TEXT NOT NULL,
+        last_value            TEXT,
+        last_source_commit_id TEXT,
+        created_at            TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_links_doc ON links(doc_document_id);
+      CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_document_id);
       CREATE INDEX IF NOT EXISTS idx_commits_document ON commits(document_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_branches_document ON branches(document_id, position);
       CREATE INDEX IF NOT EXISTS idx_sends_commit ON sends(commit_id);
@@ -526,6 +554,47 @@ export class SnapshotStore {
     ).map(rowToSend);
   }
 
+  // ── Links ──────────────────────────────────────────────────────────────
+
+  /** `link.id` must match the tag written into the document — it is the join key for refreshes. */
+  createLink(link: Omit<LinkRow, 'createdAt'>): LinkRow {
+    const { id } = link;
+    this.db
+      .prepare(
+        `INSERT INTO links (id, doc_document_id, source_document_id, sheet, cell_ref, format, last_value, last_source_commit_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(id, link.docDocumentId, link.sourceDocumentId, link.sheet, link.cellRef, link.format, link.lastValue, link.lastSourceCommitId, nowIso());
+    return this.getLink(id);
+  }
+
+  getLink(id: string): LinkRow {
+    const row = this.db.prepare('SELECT * FROM links WHERE id = ?').get(id) as unknown as RawLink | undefined;
+    if (!row) throw new Error(`No link ${id}`);
+    return rowToLink(row);
+  }
+
+  linksForDocument(docDocumentId: string): LinkRow[] {
+    return (
+      this.db.prepare('SELECT * FROM links WHERE doc_document_id = ? ORDER BY created_at').all(docDocumentId) as unknown as RawLink[]
+    ).map(rowToLink);
+  }
+
+  linksFromSource(sourceDocumentId: string): LinkRow[] {
+    return (
+      this.db.prepare('SELECT * FROM links WHERE source_document_id = ? ORDER BY created_at').all(sourceDocumentId) as unknown as RawLink[]
+    ).map(rowToLink);
+  }
+
+  updateLinkValue(id: string, value: string, sourceCommitId: string): LinkRow {
+    this.db.prepare('UPDATE links SET last_value = ?, last_source_commit_id = ? WHERE id = ?').run(value, sourceCommitId, id);
+    return this.getLink(id);
+  }
+
+  deleteLink(id: string): void {
+    this.db.prepare('DELETE FROM links WHERE id = ?').run(id);
+  }
+
   // ── Graph ──────────────────────────────────────────────────────────────
 
   /** Everything the tree view needs in one call. */
@@ -598,6 +667,32 @@ interface RawSend {
   channel: string | null;
   note: string | null;
   sent_at: string;
+}
+
+interface RawLink {
+  id: string;
+  doc_document_id: string;
+  source_document_id: string;
+  sheet: string;
+  cell_ref: string;
+  format: string;
+  last_value: string | null;
+  last_source_commit_id: string | null;
+  created_at: string;
+}
+
+function rowToLink(row: RawLink): LinkRow {
+  return {
+    id: row.id,
+    docDocumentId: row.doc_document_id,
+    sourceDocumentId: row.source_document_id,
+    sheet: row.sheet,
+    cellRef: row.cell_ref,
+    format: row.format,
+    lastValue: row.last_value,
+    lastSourceCommitId: row.last_source_commit_id,
+    createdAt: row.created_at,
+  };
 }
 
 function rowToDocument(row: RawDocument): DocumentRow {
