@@ -214,7 +214,9 @@ async function runSmokeTest(): Promise<void> {
     const tmpPath = join(dir, 'smoke-atomic.tmp');
     writeFileSync(tmpPath, makeDocx(['Branch wording.', 'Clause two.', 'Added after atomic swap.']));
     renameSync(tmpPath, docPath);
-    const noticed = await waitFor(() => svc.getGraph(doc.id).commits.length > before, 8000);
+    // Generous timeout: shared CI runners can stall the polling watcher well
+    // past its 300ms interval (observed >8s on GitHub's macOS runners).
+    const noticed = await waitFor(() => svc.getGraph(doc.id).commits.length > before, 30_000);
     if (!noticed) throw new Error('atomic save (rename over file) was not versioned');
 
     // Safety snapshot (#16): even if a save slips past the watcher entirely,
