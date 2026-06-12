@@ -16,7 +16,13 @@ mac:
   target:
     - target: dir
     - target: dmg
-  # Local personal build — no Apple Developer certificate; skip signing.
-  identity: null
+  # Signing is automatic when a "Developer ID Application" certificate is
+  # available (login keychain locally, CSC_LINK/CSC_KEY_PASSWORD env in CI);
+  # without one, electron-builder warns and produces an unsigned build.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
+  # APPLE_TEAM_ID are set in the environment; skipped otherwise.
+  notarize: true
 dmg:
   title: DocGit

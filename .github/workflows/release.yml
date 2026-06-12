@@ -27,6 +27,14 @@ jobs:
       - run: pnpm test
       - run: pnpm --filter @docgit/desktop smoke
       - run: pnpm --filter @docgit/desktop dist
+        env:
+          # Code signing + notarization — all optional: when these repo
+          # secrets are unset the build is produced unsigned.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       - name: Create release with DMG
         env:
           GH_TOKEN: ${{ github.token }}

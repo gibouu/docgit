@@ -109,6 +109,18 @@ Planned fix, in order:
 - **The version database** lives at `~/Library/Application Support/DocGit/`
   (migrated automatically from the pre-packaging Electron directory; the old
   copy is left in place as a backup and can be deleted manually).
-- **The packaged app is unsigned** (no Apple Developer certificate yet) —
-  fine for locally built copies, but a downloaded copy would hit Gatekeeper.
-  Signing + notarization needed before distributing to anyone else.
+- **Signing + notarization are wired but need credentials.** The build signs
+  automatically when a "Developer ID Application" certificate is available
+  and notarizes when Apple credentials are in the environment. To enable on
+  CI releases, add these repository secrets (Settings → Secrets → Actions):
+  - `CSC_LINK` — the Developer ID Application certificate exported from
+    Keychain Access as a `.p12`, base64-encoded (`base64 -i cert.p12`)
+  - `CSC_KEY_PASSWORD` — the `.p12` export password
+  - `APPLE_ID` — the Apple ID email of the developer account
+  - `APPLE_APP_SPECIFIC_PASSWORD` — generated at appleid.apple.com →
+    Sign-In & Security → App-Specific Passwords
+  - `APPLE_TEAM_ID` — from developer.apple.com → Membership
+  Locally, installing the certificate in the login keychain makes
+  `pnpm dist` sign automatically (notarization additionally needs the three
+  `APPLE_*` variables exported). Without credentials, builds are unsigned —
+  downloaders must right-click → Open the first time.
