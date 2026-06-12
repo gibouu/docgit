@@ -6,3 +6,4 @@ dist/
 coverage/
 .docgit/
 out/
+release/

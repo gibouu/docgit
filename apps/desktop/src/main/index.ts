@@ -1,6 +1,29 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DocumentService } from './service.js';
+
+// One identity everywhere (dev and packaged): data lives under
+// ~/Library/Application Support/DocGit.
+app.setName('DocGit');
+
+/**
+ * Early versions ran under Electron's default identity; carry the version
+ * database over to the DocGit data directory exactly once.
+ */
+function migrateLegacyData(): void {
+  const dataDir = app.getPath('userData');
+  const target = join(dataDir, 'docgit.db');
+  if (existsSync(target)) return;
+  const legacyDir = join(dataDir, '..', 'Electron');
+  if (!existsSync(join(legacyDir, 'docgit.db'))) return;
+  mkdirSync(dataDir, { recursive: true });
+  for (const suffix of ['', '-wal', '-shm']) {
+    const source = join(legacyDir, `docgit.db${suffix}`);
+    if (existsSync(source)) copyFileSync(source, `${target}${suffix}`);
+  }
+  console.log('Migrated version database from legacy Electron data directory');
+}
 
 let service: DocumentService | null = null;
 let win: BrowserWindow | null = null;
@@ -363,6 +386,7 @@ void app.whenReady().then(() => {
     void runBootCheck();
     return;
   }
+  migrateLegacyData();
   service = new DocumentService(join(app.getPath('userData'), 'docgit.db'), notifyRenderer);
   registerIpc(service);
   createWindow();

@@ -1,0 +1,22 @@
+appId: com.kuzog.docgit
+productName: DocGit
+directories:
+  output: release
+  buildResources: build
+# The main/preload/renderer bundles are fully self-contained (zero native
+# deps, workspace + runtime deps bundled by electron-vite) — nothing from
+# node_modules needs packing.
+files:
+  - out/**/*
+  - package.json
+npmRebuild: false
+mac:
+  icon: build/icon.icns
+  category: public.app-category.productivity
+  target:
+    - target: dir
+    - target: dmg
+  # Local personal build — no Apple Developer certificate; skip signing.
+  identity: null
+dmg:
+  title: DocGit

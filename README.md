@@ -26,6 +26,9 @@ pnpm --filter @docgit/desktop dev
 
 # headless verification of the app stack (used by CI)
 pnpm --filter @docgit/desktop smoke
+
+# package DocGit.app + DMG (unsigned local build) into apps/desktop/release/
+pnpm --filter @docgit/desktop dist
 ```
 
 See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec and milestone plan.
