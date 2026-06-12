@@ -72,7 +72,14 @@ function registerIpc(svc: DocumentService): void {
     return svc.addDocument(result.filePaths[0]!);
   });
 
-  ipcMain.handle('docs:open', (_e, documentId: string) => shell.openPath(svc.documentPath(documentId)));
+  ipcMain.handle('docs:open', (_e, documentId: string) => {
+    const target = svc.openTarget(documentId);
+    return target.kind === 'url' ? shell.openExternal(target.target) : shell.openPath(target.target);
+  });
+  ipcMain.handle('grist:connect', (_e, baseUrl: string, remoteDocId: string, apiKey?: string) =>
+    svc.addGristDocument(baseUrl, remoteDocId, apiKey),
+  );
+  ipcMain.handle('remote:sync', (_e, documentId: string) => svc.syncRemote(documentId));
   ipcMain.handle('docs:graph', (_e, documentId: string) => svc.getGraph(documentId));
 
   ipcMain.handle('version:save', (_e, documentId: string, message?: string) => svc.saveVersion(documentId, message));
@@ -327,6 +334,64 @@ async function runSmokeTest(): Promise<void> {
     if (pdiff.kind !== 'slides' || pdiff.summary.slidesModified !== 1 || pdiff.summary.slidesAdded !== 1) {
       throw new Error(`unexpected pptx diff: ${JSON.stringify(pdiff.kind === 'slides' ? pdiff.summary : pdiff.kind)}`);
     }
+
+    // Grist leg (#6): a faithful mock of the documented Grist REST API —
+    // connect → snapshot, server-side change → new version + live-link
+    // propagation into a linked Word document.
+    const { createServer } = await import('node:http');
+    let gristAmount = 1200;
+    const gristServer = createServer((req, res) => {
+      const sendJson = (body: unknown) => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(body));
+      };
+      const url = req.url ?? '';
+      if (url.endsWith('/tables')) return sendJson({ tables: [{ id: 'Forecast' }] });
+      if (url.endsWith('/tables/Forecast/columns')) {
+        return sendJson({
+          columns: [{ id: 'Item', fields: {} }, { id: 'Amount', fields: {} }],
+        });
+      }
+      if (url.endsWith('/tables/Forecast/records')) {
+        return sendJson({ records: [{ id: 1, fields: { Item: 'Revenue', Amount: gristAmount } }] });
+      }
+      if (url.endsWith('/download')) {
+        res.writeHead(200, { 'content-type': 'application/octet-stream' });
+        return res.end(Buffer.from(`grist-snapshot-${gristAmount}`));
+      }
+      res.writeHead(404);
+      res.end('not found');
+    });
+    await new Promise<void>((resolveListen) => gristServer.listen(0, '127.0.0.1', resolveListen));
+    const gristPort = (gristServer.address() as { port: number }).port;
+
+    const gdoc = await svc.addGristDocument(`http://127.0.0.1:${gristPort}`, 'smokedoc');
+    if (svc.getGraph(gdoc.id).commits.length !== 1) throw new Error('grist connect did not snapshot');
+
+    const memoPath = join(dir, 'memo.docx');
+    writeFileSync(memoPath, makeDocx(['Forecast revenue: 7777 euros.']));
+    const mdoc = svc.addDocument(memoPath);
+    svc.createLink(mdoc.id, {
+      sourceDocumentId: gdoc.id,
+      sheet: 'Forecast',
+      cellRef: 'Amount:1',
+      format: { style: 'raw' },
+      search: '7777',
+      occurrence: 0,
+    });
+
+    gristAmount = 1500; // the data changes on the server
+    await svc.syncRemote(gdoc.id);
+
+    const ggraph = svc.getGraph(gdoc.id);
+    if (ggraph.commits.length !== 2) throw new Error('grist change not versioned');
+    const gdiff = svc.diff(ggraph.commits[0]!.id, ggraph.commits[1]!.id);
+    if (gdiff.kind !== 'spreadsheet' || gdiff.summary.cellsModified !== 1) {
+      throw new Error(`unexpected grist diff: ${JSON.stringify(gdiff.kind === 'spreadsheet' ? gdiff.summary : gdiff.kind)}`);
+    }
+    const memoText = parseDocx(readFileSync(memoPath)).blocks.map((b) => ('text' in b ? b.text : '')).join(' ');
+    if (!memoText.includes('1500')) throw new Error(`grist change did not propagate into the document: ${memoText}`);
+    gristServer.close();
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);

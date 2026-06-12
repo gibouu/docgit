@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DocumentSummary } from '@docgit/core';
+import type { DocumentInfo } from '../../preload/api';
 import { Library } from './views/Library.js';
 import { DocumentView } from './views/DocumentView.js';
 import { SentHistory } from './views/SentHistory.js';
@@ -10,7 +10,7 @@ type Route =
   | { kind: 'doc'; id: string; commitId?: string };
 
 export function App() {
-  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [route, setRoute] = useState<Route>({ kind: 'library' });
 
   const refresh = useCallback(async () => {

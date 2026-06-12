@@ -115,6 +115,27 @@ function sha256(data: Uint8Array | string): string {
   return createHash('sha256').update(data).digest('hex');
 }
 
+/** Remote documents are keyed by opaque URLs, never resolved against the fs. */
+export function isRemoteKey(path: string): boolean {
+  return /^[a-z][a-z0-9+]*:\/\//i.test(path);
+}
+
+export interface RemoteRow {
+  documentId: string;
+  kind: string;
+  baseUrl: string;
+  remoteDocId: string;
+  apiKey: string | null;
+}
+
+interface RawRemote {
+  document_id: string;
+  kind: string;
+  base_url: string;
+  remote_doc_id: string;
+  api_key: string | null;
+}
+
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -190,7 +211,14 @@ export class SnapshotStore {
     this.ensureColumn('branches', 'forked_from_commit_id TEXT');
     this.ensureColumn('branches', 'synced_upstream_commit_id TEXT');
     this.db.exec(`
-      PRAGMA user_version = 3;
+      CREATE TABLE IF NOT EXISTS remotes (
+        document_id   TEXT PRIMARY KEY REFERENCES documents(id),
+        kind          TEXT NOT NULL,
+        base_url      TEXT NOT NULL,
+        remote_doc_id TEXT NOT NULL,
+        api_key       TEXT
+      );
+      PRAGMA user_version = 4;
       CREATE INDEX IF NOT EXISTS idx_commits_document ON commits(document_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_branches_document ON branches(document_id, position);
       CREATE INDEX IF NOT EXISTS idx_sends_commit ON sends(commit_id);
@@ -211,9 +239,13 @@ export class SnapshotStore {
 
   // ── Documents ──────────────────────────────────────────────────────────
 
-  /** Register a document for tracking (idempotent). Creates its Main branch. */
-  addDocument(filePath: string): DocumentRow {
-    const path = resolve(filePath);
+  /**
+   * Register a document for tracking (idempotent). Creates its Main branch.
+   * Keys are absolute file paths, or opaque URLs for remote documents
+   * (e.g. grist://host/docId).
+   */
+  addDocument(filePath: string, displayName?: string): DocumentRow {
+    const path = isRemoteKey(filePath) ? filePath : resolve(filePath);
     const existing = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(path) as
       | RawDocument
       | undefined;
@@ -221,7 +253,7 @@ export class SnapshotStore {
 
     const docId = sha256(path).slice(0, 16);
     const branchId = sha256(`${docId}:main:${nowIso()}`).slice(0, 16);
-    const name = path.split('/').pop() ?? path;
+    const name = displayName ?? path.split('/').pop() ?? path;
     this.db.exec('BEGIN');
     try {
       this.db
@@ -247,10 +279,33 @@ export class SnapshotStore {
   }
 
   getDocumentByPath(filePath: string): DocumentRow | undefined {
-    const row = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(resolve(filePath)) as
-      | RawDocument
-      | undefined;
+    const path = isRemoteKey(filePath) ? filePath : resolve(filePath);
+    const row = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(path) as RawDocument | undefined;
     return row ? rowToDocument(row) : undefined;
+  }
+
+  // ── Remote connections ─────────────────────────────────────────────────
+
+  setRemote(documentId: string, remote: { kind: string; baseUrl: string; remoteDocId: string; apiKey?: string }): void {
+    this.db
+      .prepare(
+        'INSERT OR REPLACE INTO remotes (document_id, kind, base_url, remote_doc_id, api_key) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(documentId, remote.kind, remote.baseUrl, remote.remoteDocId, remote.apiKey ?? null);
+  }
+
+  getRemote(documentId: string): RemoteRow | undefined {
+    const row = this.db.prepare('SELECT * FROM remotes WHERE document_id = ?').get(documentId) as
+      | RawRemote
+      | undefined;
+    if (!row) return undefined;
+    return {
+      documentId: row.document_id,
+      kind: row.kind,
+      baseUrl: row.base_url,
+      remoteDocId: row.remote_doc_id,
+      apiKey: row.api_key,
+    };
   }
 
   listDocuments(): DocumentSummary[] {

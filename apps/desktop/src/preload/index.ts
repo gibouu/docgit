@@ -32,6 +32,10 @@ const api = {
   markSent: (documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
     ipcRenderer.invoke('send:mark', documentId, commitId, info),
 
+  connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
+    ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
+  syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),
+
   branchStatuses: (documentId: string) => ipcRenderer.invoke('branch:statuses', documentId),
   markBranchSynced: (documentId: string, branchId: string) =>
     ipcRenderer.invoke('branch:markSynced', documentId, branchId),
