@@ -37,7 +37,11 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('docs:add', async () => {
     const result = await dialog.showOpenDialog(win!, {
       title: 'Add a document to DocGit',
-      filters: [{ name: 'Word documents', extensions: ['docx'] }],
+      filters: [
+        { name: 'Documents', extensions: ['docx', 'xlsx'] },
+        { name: 'Word documents', extensions: ['docx'] },
+        { name: 'Excel workbooks', extensions: ['xlsx'] },
+      ],
       properties: ['openFile'],
     });
     if (result.canceled || result.filePaths.length === 0) return null;
@@ -136,7 +140,7 @@ async function runSmokeTest(): Promise<void> {
     if (graph.commits.length !== 2) throw new Error(`expected 2 commits, got ${graph.commits.length}`);
 
     const diff = svc.diff(graph.commits[0]!.id, graph.commits[1]!.id);
-    if (diff.summary.modified !== 1 || diff.summary.added !== 1) {
+    if (diff.kind !== 'text' || diff.summary.modified !== 1 || diff.summary.added !== 1) {
       throw new Error(`unexpected diff summary: ${JSON.stringify(diff.summary)}`);
     }
 
@@ -169,6 +173,48 @@ async function runSmokeTest(): Promise<void> {
     const texts = parseDocx(restored).blocks.map((b) => ('text' in b ? b.text : ''));
     if (!texts.includes('Edit the watcher never saw.')) {
       throw new Error('unversioned disk content was destroyed by branch switch');
+    }
+
+    // Excel leg (#4): track an .xlsx and get a cell-level diff.
+    const makeXlsxDoc = (cells: Record<string, string | number>): Uint8Array => {
+      const rowsByN = new Map<number, string[]>();
+      for (const [ref, value] of Object.entries(cells)) {
+        const rowN = Number(/\d+/.exec(ref)![0]);
+        const xml =
+          typeof value === 'number'
+            ? `<c r="${ref}"><v>${value}</v></c>`
+            : `<c r="${ref}" t="inlineStr"><is><t>${value}</t></is></c>`;
+        rowsByN.set(rowN, [...(rowsByN.get(rowN) ?? []), xml]);
+      }
+      const rows = [...rowsByN.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([n, cs]) => `<row r="${n}">${cs.join('')}</row>`)
+        .join('');
+      return zipSync({
+        '[Content_Types].xml': strToU8(
+          '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        ),
+        'xl/workbook.xml': strToU8(
+          '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Forecast" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        ),
+        'xl/_rels/workbook.xml.rels': strToU8(
+          '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
+        ),
+        'xl/worksheets/sheet1.xml': strToU8(
+          `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows}</sheetData></worksheet>`,
+        ),
+      });
+    };
+    const xlsxPath = join(dir, 'forecast.xlsx');
+    writeFileSync(xlsxPath, makeXlsxDoc({ A1: 'Revenue', B1: 1000 }));
+    const xdoc = svc.addDocument(xlsxPath);
+    writeFileSync(xlsxPath, makeXlsxDoc({ A1: 'Revenue', B1: 1200, A2: 'Costs' }));
+    svc.saveVersion(xdoc.id, 'forecast update');
+    const xgraph = svc.getGraph(xdoc.id);
+    if (xgraph.commits.length !== 2) throw new Error('xlsx versions not recorded');
+    const xdiff = svc.diff(xgraph.commits[0]!.id, xgraph.commits[1]!.id);
+    if (xdiff.kind !== 'spreadsheet' || xdiff.summary.cellsModified !== 1 || xdiff.summary.cellsAdded !== 1) {
+      throw new Error(`unexpected xlsx diff: ${JSON.stringify(xdiff.kind === 'spreadsheet' ? xdiff.summary : xdiff.kind)}`);
     }
 
     svc.dispose();

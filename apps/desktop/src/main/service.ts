@@ -1,6 +1,6 @@
 import {
   diffModels,
-  parseDocx,
+  parseDocument,
   SnapshotStore,
   type BranchRow,
   type CommitResult,
@@ -121,8 +121,9 @@ export class DocumentService {
     const dir = join(tmpdir(), 'docgit-versions');
     mkdirSync(dir, { recursive: true });
     const stamp = commit.createdAt.slice(0, 16).replace(/[:T]/g, '-');
-    const base = doc.name.replace(/\.docx$/i, '');
-    const path = join(dir, `${base} (version ${stamp}).docx`);
+    const ext = doc.name.includes('.') ? doc.name.slice(doc.name.lastIndexOf('.')) : '';
+    const base = ext ? doc.name.slice(0, -ext.length) : doc.name;
+    const path = join(dir, `${base} (version ${stamp})${ext}`);
     writeFileSync(path, this.store.getFileBytes(commit));
     return path;
   }
@@ -182,7 +183,7 @@ export class DocumentService {
       return undefined; // transient: editor mid-save or file temporarily gone
     }
     try {
-      const model = parseDocx(bytes);
+      const model = parseDocument(path, bytes);
       return this.store.commit(path, bytes, model, {
         ...(message !== undefined ? { message } : {}),
         ...(coalesceWindowMs !== undefined ? { coalesceWindowMs } : {}),

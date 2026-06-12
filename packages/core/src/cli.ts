@@ -4,8 +4,9 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import pc from 'picocolors';
-import { parseDocx } from './adapters/word/parse.js';
+import { parseDocument } from './adapters/parse.js';
 import { diffModels, type Change } from './diff/diff.js';
+import type { SpreadsheetDiff } from './diff/spreadsheet.js';
 import { blockText } from './model/types.js';
 import { SnapshotStore } from './store/store.js';
 
@@ -28,13 +29,13 @@ program.name('docgit').description('DocGit core engine test CLI').version('0.1.0
 
 program
   .command('commit')
-  .argument('<file>', 'path to a .docx file')
+  .argument('<file>', 'path to a .docx or .xlsx file')
   .option('-m, --message <message>', 'commit message')
   .option('-a, --author <author>', 'author name')
   .description('snapshot the current content of a document')
   .action((file: string, opts: { message?: string; author?: string }) => {
     const bytes = readFileSync(file);
-    const model = parseDocx(bytes);
+    const model = parseDocument(file, bytes);
     const store = openStore();
     try {
       const { commit, created } = store.commit(file, bytes, model, opts);
@@ -80,8 +81,14 @@ program
     try {
       const a = store.resolve(from);
       const b = store.resolve(to);
-      const { changes, summary } = diffModels(store.getModel(a), store.getModel(b));
+      const diff = diffModels(store.getModel(a), store.getModel(b));
 
+      if (diff.kind === 'spreadsheet') {
+        printSpreadsheetDiff(diff);
+        return;
+      }
+
+      const { changes, summary } = diff;
       console.log(
         pc.bold(
           `${pc.green(`+${summary.added}`)} ${pc.red(`−${summary.removed}`)} ` +
@@ -120,11 +127,40 @@ program
     try {
       const commit = store.resolve(ref);
       const model = store.getModel(commit);
+      if (model.kind === 'spreadsheet') {
+        for (const sheet of model.sheets) {
+          console.log(pc.bold(sheet.name));
+          for (const [cellRef, value] of Object.entries(sheet.cells)) {
+            console.log(`  ${cellRef}: ${value.v}${value.f ? pc.dim(`  ${value.f}`) : ''}`);
+          }
+        }
+        return;
+      }
       for (const block of model.blocks) console.log(blockText(block));
     } finally {
       store.close();
     }
   });
+
+function printSpreadsheetDiff(diff: SpreadsheetDiff): void {
+  const s = diff.summary;
+  console.log(
+    pc.bold(
+      `${pc.green(`+${s.cellsAdded}`)} ${pc.red(`−${s.cellsRemoved}`)} ${pc.yellow(`~${s.cellsModified} cells`)} ` +
+        pc.magenta(`ƒ${s.formulasChanged} formulas`) +
+        pc.dim(` (${s.cellsUnchanged} unchanged)`),
+    ),
+  );
+  for (const name of s.sheetsAdded) console.log(pc.green(`+ sheet ${name}`));
+  for (const name of s.sheetsRemoved) console.log(pc.red(`− sheet ${name}`));
+  for (const change of diff.cellChanges) {
+    const cellRef = `${change.sheet}!${change.ref}`;
+    const fmt = (v?: { v: string; f?: string }) => (v ? `${v.v}${v.f ? ` (${v.f})` : ''}` : '');
+    if (change.type === 'added') console.log(pc.green(`+ ${cellRef} = ${fmt(change.newValue)}`));
+    else if (change.type === 'removed') console.log(pc.red(`− ${cellRef} = ${fmt(change.oldValue)}`));
+    else console.log(`${pc.yellow('~')} ${cellRef}: ${pc.red(fmt(change.oldValue))} → ${pc.green(fmt(change.newValue))}`);
+  }
+}
 
 function printChange(change: Change): void {
   switch (change.type) {
