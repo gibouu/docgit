@@ -14,6 +14,11 @@ import type {
 
 export type DocumentInfo = DocumentSummary & { remoteKind: string | null };
 
+export interface CloudStatus {
+  provider: 'iCloud Drive' | 'OneDrive' | 'Dropbox' | 'Google Drive' | null;
+  conflictCopies: string[];
+}
+
 export interface RecipientSummary {
   recipient: string;
   sendCount: number;
@@ -46,6 +51,8 @@ export interface CreateLinkPayload {
 export interface DocgitApi {
   listDocuments(): Promise<DocumentInfo[]>;
   addDocument(): Promise<DocumentRow | null>;
+  cloudStatus(documentId: string): Promise<CloudStatus>;
+  addDocumentByPath(path: string): Promise<DocumentRow>;
   connectGrist(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow>;
   syncRemote(documentId: string): Promise<CommitResult | undefined>;
   openDocument(documentId: string): Promise<string>;

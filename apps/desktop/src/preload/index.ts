@@ -32,6 +32,8 @@ const api = {
   markSent: (documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
     ipcRenderer.invoke('send:mark', documentId, commitId, info),
 
+  cloudStatus: (documentId: string) => ipcRenderer.invoke('docs:cloudStatus', documentId),
+  addDocumentByPath: (path: string) => ipcRenderer.invoke('docs:addPath', path),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
   syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),

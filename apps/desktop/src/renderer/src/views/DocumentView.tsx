@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BranchRow, CommitRow, DocDiff, DocumentGraph, UpstreamStatus } from '@docgit/core';
-import type { DocumentInfo } from '../../../preload/api';
+import type { CloudStatus, DocumentInfo } from '../../../preload/api';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
 import { LinksSection } from './LinksSection.js';
@@ -18,6 +18,7 @@ type DialogState =
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
   | { kind: 'renameVersion'; commit: CommitRow }
   | { kind: 'renameBranch'; branch: BranchRow }
+  | { kind: 'cloudSwitch'; branchId: string; branchName: string }
   | null;
 
 export function DocumentView({ document: doc, onBack, initialSelectedId }: DocumentViewProps) {
@@ -30,9 +31,12 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
 
   const treeScrollRef = useRef<HTMLDivElement>(null);
 
+  const [cloud, setCloud] = useState<CloudStatus>({ provider: null, conflictCopies: [] });
+
   const refresh = useCallback(async () => {
     setGraph(await window.docgit.getGraph(doc.id));
     setStatuses(await window.docgit.branchStatuses(doc.id));
+    setCloud(await window.docgit.cloudStatus(doc.id));
   }, [doc.id]);
 
   useEffect(() => {
@@ -101,6 +105,18 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
 
   const currentStatus = statuses.find((s) => s.branchId === graph.document.currentBranchId)?.status ?? null;
 
+  // Switching rewrites the file on disk. In a cloud-synced folder that
+  // rewrite syncs to everyone the folder is shared with — confirm first.
+  const requestSwitch = (branchId: string) => {
+    if (branchId === graph.document.currentBranchId) return;
+    const branch = graph.branches.find((b) => b.id === branchId);
+    if (cloud.provider) {
+      setDialog({ kind: 'cloudSwitch', branchId, branchName: branch?.name ?? 'branch' });
+    } else {
+      void window.docgit.switchBranch(doc.id, branchId);
+    }
+  };
+
   return (
     <main className="docview">
       <header className="docview-header">
@@ -134,6 +150,14 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               archived
             </label>
           )}
+          {cloud.provider && (
+            <span
+              className="cloud-chip"
+              title={`This file lives in a ${cloud.provider} folder. If the folder is shared, others receive every change DocGit writes — avoid switching branches on files other people edit live.`}
+            >
+              ☁ {cloud.provider}
+            </span>
+          )}
           {currentStatus && currentStatus.behind > 0 && (
             <button
               type="button"
@@ -160,6 +184,26 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
         </div>
       </header>
 
+      {cloud.conflictCopies.length > 0 && (
+        <div className="cloud-banner">
+          <strong>⚠ {cloud.provider ?? 'Your sync service'} created conflict copies of this document:</strong>
+          {cloud.conflictCopies.map((path) => (
+            <span key={path} className="cloud-conflict">
+              {path.split('/').pop()}
+              <button
+                type="button"
+                className="btn btn-mini"
+                title="Track the copy in DocGit so its content is preserved and comparable"
+                onClick={() => void window.docgit.addDocumentByPath(path)}
+              >
+                Track it
+              </button>
+            </span>
+          ))}
+          <span className="cloud-banner-hint">A conflict copy may hold someone else's edits that are not in this history.</span>
+        </div>
+      )}
+
       <div className="docview-body">
         <section className="docview-tree">
           <div className="docview-tree-scroll" ref={treeScrollRef}>
@@ -170,9 +214,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               currentBranchId={graph.document.currentBranchId}
               selectedIds={selectedIds}
               onSelect={onSelect}
-              onSelectBranch={(branchId) => {
-                if (branchId !== graph.document.currentBranchId) void window.docgit.switchBranch(doc.id, branchId);
-              }}
+              onSelectBranch={requestSwitch}
               showArchived={showArchived}
             />
           </div>
@@ -214,7 +256,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               onBranch={() => setDialog({ kind: 'branch', from: selected[0]! })}
               onRestore={() => void askRestore(selected[0]!)}
               onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
-              onSwitchTo={(branchId) => void window.docgit.switchBranch(doc.id, branchId)}
+              onSwitchTo={requestSwitch}
               onRename={(commit) => setDialog({ kind: 'renameVersion', commit })}
             />
           ) : (
@@ -226,6 +268,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                 onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
                 onShowUpstream={(s) => void showUpstreamChanges(s)}
                 onMarkSynced={(branchId) => void window.docgit.markBranchSynced(doc.id, branchId)}
+                onSwitch={requestSwitch}
               />
               {doc.name.toLowerCase().endsWith('.docx') && <LinksSection documentId={doc.id} />}
             </>
@@ -233,6 +276,31 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
         </aside>
       </div>
 
+      {dialog?.kind === 'cloudSwitch' && (
+        <Modal title={`Switch branches in a ${cloud.provider} folder?`} onClose={() => setDialog(null)}>
+          <p>
+            Switching to <strong>“{dialog.branchName}”</strong> rewrites the file on disk with that branch's content.
+            Because this file lives in {cloud.provider}, the rewrite syncs to <strong>everyone the folder is shared
+            with</strong> — if someone else is editing it right now, your branches will collide with their work.
+          </p>
+          <p className="modal-hint">Safe if you're the only one using this file. Your own work is never lost either way.</p>
+          <div className="modal-actions">
+            <button type="button" className="btn" onClick={() => setDialog(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                void window.docgit.switchBranch(doc.id, dialog.branchId);
+                setDialog(null);
+              }}
+            >
+              Switch anyway
+            </button>
+          </div>
+        </Modal>
+      )}
       {dialog?.kind === 'renameVersion' && (
         <NameDialog
           title="Rename this version"
@@ -286,6 +354,11 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             </p>
           ) : (
             <p>The file on disk will be replaced with this version's content. Nothing is lost — every version stays in the history.</p>
+          )}
+          {cloud.provider && (
+            <p className="modal-hint">
+              ⚠ This file lives in {cloud.provider} — the restored content syncs to everyone the folder is shared with.
+            </p>
           )}
           <div className="modal-actions">
             <button type="button" className="btn" onClick={() => setDialog(null)}>
@@ -450,6 +523,7 @@ function BranchPanel({
   onRenameBranch,
   onShowUpstream,
   onMarkSynced,
+  onSwitch,
 }: {
   graph: DocumentGraph;
   statuses: { branchId: string; status: UpstreamStatus | null }[];
@@ -457,6 +531,7 @@ function BranchPanel({
   onRenameBranch: (b: BranchRow) => void;
   onShowUpstream: (s: UpstreamStatus) => void;
   onMarkSynced: (branchId: string) => void;
+  onSwitch: (branchId: string) => void;
 }) {
   const docId = graph.document.id;
   const trunk = graph.branches[0];
@@ -508,7 +583,7 @@ function BranchPanel({
                   </button>
                 )}
                 {!isCurrent && !branch.archived && (
-                  <button type="button" className="btn btn-mini" onClick={() => void window.docgit.switchBranch(docId, branch.id)}>
+                  <button type="button" className="btn btn-mini" onClick={() => onSwitch(branch.id)}>
                     Switch to
                   </button>
                 )}
