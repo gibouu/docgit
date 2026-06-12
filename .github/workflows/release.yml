@@ -1,0 +1,37 @@
+name: Release
+
+# Push a tag like v0.8.0 to build DocGit.app on an Apple-silicon runner and
+# attach the DMG to a GitHub Release. Builds are unsigned until an Apple
+# Developer ID is set up (see docs/TECH-NOTES.md) — downloaders must
+# right-click → Open the first time, or run: xattr -dr com.apple.quarantine /Applications/DocGit.app
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm --filter @docgit/desktop smoke
+      - run: pnpm --filter @docgit/desktop dist
+      - name: Create release with DMG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "DocGit ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            apps/desktop/release/*.dmg

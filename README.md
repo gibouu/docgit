@@ -31,4 +31,13 @@ pnpm --filter @docgit/desktop smoke
 pnpm --filter @docgit/desktop dist
 ```
 
+## Releases
+
+Push a tag (`git tag v0.8.0 && git push origin v0.8.0`) and CI builds the DMG
+on an Apple-silicon runner and attaches it to a GitHub Release. Builds are
+**unsigned** for now: after downloading, right-click → Open the first time
+(or `xattr -dr com.apple.quarantine /Applications/DocGit.app`). Proper
+signing + notarization requires an Apple Developer ID — see
+[`docs/TECH-NOTES.md`](docs/TECH-NOTES.md).
+
 See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec and milestone plan.
