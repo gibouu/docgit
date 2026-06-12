@@ -16,6 +16,8 @@ export interface BranchGraphProps {
   currentBranchId: string;
   selectedIds: string[];
   onSelect: (commit: CommitRow, additive: boolean) => void;
+  /** Clicking a branch pill — typically switches the working branch. */
+  onSelectBranch?: (branchId: string) => void;
   showArchived?: boolean;
 }
 
@@ -37,7 +39,8 @@ interface Row {
 }
 
 export function BranchGraph(props: BranchGraphProps) {
-  const { branches, commits, sends, currentBranchId, selectedIds, onSelect, showArchived = false } = props;
+  const { branches, commits, sends, currentBranchId, selectedIds, onSelect, onSelectBranch, showArchived = false } =
+    props;
 
   const layout = useMemo(() => {
     const visibleBranches = branches.filter((b) => showArchived || !b.archived);
@@ -162,8 +165,14 @@ export function BranchGraph(props: BranchGraphProps) {
                     {row.headOf.map((branch) => (
                       <span
                         key={branch.id}
-                        className={`dg-branch-pill${branch.id === currentBranchId ? ' is-current' : ''}`}
+                        role="button"
+                        className={`dg-branch-pill dg-branch-pill-clickable${branch.id === currentBranchId ? ' is-current' : ''}`}
                         style={{ ['--dg-pill' as string]: branch.color }}
+                        title={branch.id === currentBranchId ? 'You are working on this branch' : `Work on “${branch.name}”`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectBranch?.(branch.id);
+                        }}
                       >
                         {branch.name}
                         {branch.archived ? ' · archived' : ''}
