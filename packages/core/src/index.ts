@@ -17,7 +17,9 @@ export { parseDocx } from './adapters/word/parse.js';
 export { parseXlsx } from './adapters/excel/parse.js';
 export { parsePptx } from './adapters/powerpoint/parse.js';
 export { parseDocument, SUPPORTED_EXTENSIONS } from './adapters/parse.js';
+export { GristClient, type GristConfig } from './adapters/grist/client.js';
 export {
+  isRemoteKey,
   SnapshotStore,
   type BranchRow,
   type CommitResult,
@@ -26,6 +28,7 @@ export {
   type DocumentRow,
   type DocumentSummary,
   type LinkRow,
+  type RemoteRow,
   type SendRow,
   type UpstreamStatus,
 } from './store/store.js';

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { BranchRow, CommitRow, DocDiff, DocumentGraph, DocumentSummary, UpstreamStatus } from '@docgit/core';
+import type { BranchRow, CommitRow, DocDiff, DocumentGraph, UpstreamStatus } from '@docgit/core';
+import type { DocumentInfo } from '../../../preload/api';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
 import { LinksSection } from './LinksSection.js';
 
 export interface DocumentViewProps {
-  document: DocumentSummary;
+  document: DocumentInfo;
   onBack: () => void;
   /** Pre-select this version on open (e.g. arriving from the sent history). */
   initialSelectedId?: string;
@@ -148,8 +149,13 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               Compare with {trunk.name}
             </button>
           )}
+          {doc.remoteKind && (
+            <button type="button" className="btn" onClick={() => void window.docgit.syncRemote(doc.id)}>
+              Sync now
+            </button>
+          )}
           <button type="button" className="btn btn-primary" onClick={() => void window.docgit.openDocument(doc.id)}>
-            Open in Word
+            {doc.remoteKind ? 'Open in Grist' : 'Open in Word'}
           </button>
         </div>
       </header>
@@ -203,6 +209,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             <VersionDetails
               commit={selected[0]!}
               graph={graph}
+              readOnly={!!doc.remoteKind}
               onOpenCopy={() => void window.docgit.openVersionCopy(selected[0]!.id)}
               onBranch={() => setDialog({ kind: 'branch', from: selected[0]! })}
               onRestore={() => void askRestore(selected[0]!)}
@@ -305,6 +312,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
 function VersionDetails(props: {
   commit: CommitRow;
   graph: DocumentGraph;
+  readOnly: boolean;
   onOpenCopy: () => void;
   onBranch: () => void;
   onRestore: () => void;
@@ -359,12 +367,13 @@ function VersionDetails(props: {
       </dl>
 
       <div className="version-actions">
-        {switchableBranches.map((b) => (
-          <button key={b.id} type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(b.id)}>
-            Work on “{b.name}”
-          </button>
-        ))}
-        {commit.branchId !== graph.document.currentBranchId && (
+        {!props.readOnly &&
+          switchableBranches.map((b) => (
+            <button key={b.id} type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(b.id)}>
+              Work on “{b.name}”
+            </button>
+          ))}
+        {!props.readOnly && commit.branchId !== graph.document.currentBranchId && (
           <button
             type="button"
             className="btn"
@@ -377,10 +386,12 @@ function VersionDetails(props: {
         <button type="button" className="btn" onClick={props.onOpenCopy} title="Opens a read-only temp copy — edits there are not tracked">
           Preview a copy
         </button>
-        <button type="button" className="btn" onClick={props.onBranch}>
-          Branch from here
-        </button>
-        {!isHead && commit.branchId === graph.document.currentBranchId && (
+        {!props.readOnly && (
+          <button type="button" className="btn" onClick={props.onBranch}>
+            Branch from here
+          </button>
+        )}
+        {!props.readOnly && !isHead && commit.branchId === graph.document.currentBranchId && (
           <button type="button" className="btn" onClick={props.onRestore}>
             Restore
           </button>

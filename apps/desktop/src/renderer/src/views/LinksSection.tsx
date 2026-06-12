@@ -114,7 +114,7 @@ function AddLinkDialog({ documentId, onClose }: { documentId: string; onClose: (
 
   useEffect(() => {
     setCell(null);
-    if (!sourceId || !sheet || !/^[A-Za-z]+\d+$/.test(cellRef)) return;
+    if (!sourceId || !sheet || cellRef.trim() === '') return;
     const handle = setTimeout(() => {
       void window.docgit.workbookCell(sourceId, sheet, cellRef).then(setCell);
     }, 250);
@@ -188,7 +188,7 @@ function AddLinkDialog({ documentId, onClose }: { documentId: string; onClose: (
               <span>Cell</span>
               <input
                 className="input"
-                placeholder="B14"
+                placeholder="B14 (Excel) or Amount:1 (Grist)"
                 value={cellRef}
                 onChange={(e) => setCellRef(e.target.value.trim())}
               />

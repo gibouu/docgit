@@ -82,7 +82,22 @@ Planned fix, in order:
   deletions dropped). Pending-revision metadata (who proposed what) is not
   preserved in the model.
 
-## 4. App behaviors to know
+## 4. Grist integration limits
+
+- **Polling, not webhooks.** Remote Grist documents are polled every 15 s;
+  Grist webhooks need a reachable callback URL, which a desktop app doesn't
+  naturally have. Webhook support (via a local listener) is future work.
+- **Validated against a faithful API mock, not yet a live server.** The
+  Electron smoke test runs the full flow (connect → change → version →
+  link propagation) against an in-process mock of the documented REST API;
+  first run against a real grist-core instance still pending.
+- **Read-only**: DocGit never writes back to the Grist server — branch
+  switching, restore and branching are disabled for remote documents.
+- **API keys are stored in plaintext** in the local database. Acceptable for
+  open local servers; should move to the macOS Keychain before use with
+  hosted accounts.
+
+## 5. App behaviors to know
 
 - **Word holds files in memory.** Switching branches/restoring while the
   document is open in Word means Word's next save overwrites the new disk

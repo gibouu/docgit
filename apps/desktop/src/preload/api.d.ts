@@ -12,6 +12,8 @@ import type {
   ValueFormat,
 } from '@docgit/core';
 
+export type DocumentInfo = DocumentSummary & { remoteKind: string | null };
+
 export interface RecipientSummary {
   recipient: string;
   sendCount: number;
@@ -42,8 +44,10 @@ export interface CreateLinkPayload {
 
 /** Renderer-side view of the preload bridge, with IPC-resolved types. */
 export interface DocgitApi {
-  listDocuments(): Promise<DocumentSummary[]>;
+  listDocuments(): Promise<DocumentInfo[]>;
   addDocument(): Promise<DocumentRow | null>;
+  connectGrist(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow>;
+  syncRemote(documentId: string): Promise<CommitResult | undefined>;
   openDocument(documentId: string): Promise<string>;
   getGraph(documentId: string): Promise<DocumentGraph>;
 

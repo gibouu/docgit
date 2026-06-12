@@ -2,7 +2,9 @@ import {
   diffModels,
   findLinkableOccurrences,
   formatValue,
+  GristClient,
   insertLinkedValue,
+  isRemoteKey,
   parseDocument,
   refreshLinkedValue,
   SnapshotStore,
@@ -55,29 +57,48 @@ export interface CreateLinkPayload {
  */
 const AUTOSAVE_COALESCE_MS = 15 * 60_000;
 
+/** Remote (API-backed) documents are polled for changes at this interval. */
+const REMOTE_POLL_MS = 15_000;
+
+export type DocumentInfo = DocumentSummary & { remoteKind: string | null };
+
+/** Excel "b14" → "B14"; Grist refs ("Amount:1") are case-sensitive ids — left alone. */
+function normalizeCellRef(ref: string): string {
+  return /^[A-Za-z]+\d+$/.test(ref) ? ref.toUpperCase() : ref;
+}
+
 export class DocumentService {
   private store: SnapshotStore;
   private watchers = new Map<string, FSWatcher>();
   private watchersReady: Promise<void>[] = [];
+  private pollers = new Map<string, NodeJS.Timeout>();
 
   constructor(
     dbPath: string,
     private onChanged: (documentId: string) => void,
   ) {
     this.store = new SnapshotStore(dbPath);
-    for (const doc of this.store.listDocuments()) this.watch(doc);
+    for (const doc of this.store.listDocuments()) {
+      if (isRemoteKey(doc.path)) this.startPoller(doc.id);
+      else this.watch(doc);
+    }
   }
 
   dispose(): void {
     for (const watcher of this.watchers.values()) void watcher.close();
     this.watchers.clear();
+    for (const poller of this.pollers.values()) clearInterval(poller);
+    this.pollers.clear();
     this.store.close();
   }
 
   // ── Documents ──────────────────────────────────────────────────────────
 
-  listDocuments(): DocumentSummary[] {
-    return this.store.listDocuments();
+  listDocuments(): DocumentInfo[] {
+    return this.store.listDocuments().map((doc) => ({
+      ...doc,
+      remoteKind: this.store.getRemote(doc.id)?.kind ?? null,
+    }));
   }
 
   /** Track a document and snapshot its current content as the first version. */
@@ -97,10 +118,69 @@ export class DocumentService {
     return this.store.getDocument(documentId).path;
   }
 
+  /** Where "open" should take the user: the file on disk, or the remote editor. */
+  openTarget(documentId: string): { kind: 'file' | 'url'; target: string } {
+    const doc = this.store.getDocument(documentId);
+    const remote = this.store.getRemote(documentId);
+    if (remote) {
+      return { kind: 'url', target: `${remote.baseUrl.replace(/\/+$/, '')}/doc/${encodeURIComponent(remote.remoteDocId)}` };
+    }
+    return { kind: 'file', target: doc.path };
+  }
+
+  // ── Remote documents (Grist) ───────────────────────────────────────────
+
+  /** Connect a Grist document: read-only tracking — snapshot, diff, branch view, link source. */
+  async addGristDocument(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow> {
+    const host = new URL(baseUrl).host;
+    const key = `grist://${host}/${remoteDocId}`;
+    const doc = this.store.addDocument(key, `${remoteDocId} · Grist`);
+    this.store.setRemote(doc.id, { kind: 'grist', baseUrl, remoteDocId, ...(apiKey ? { apiKey } : {}) });
+    await this.syncRemote(doc.id);
+    this.startPoller(doc.id);
+    this.onChanged(doc.id);
+    return doc;
+  }
+
+  /** Pull the current remote state and version it if it changed. */
+  async syncRemote(documentId: string): Promise<CommitResult | undefined> {
+    const doc = this.store.getDocument(documentId);
+    const remote = this.store.getRemote(documentId);
+    if (!remote || remote.kind !== 'grist') return undefined;
+    const client = new GristClient({
+      baseUrl: remote.baseUrl,
+      docId: remote.remoteDocId,
+      ...(remote.apiKey ? { apiKey: remote.apiKey } : {}),
+    });
+    const [model, bytes] = await Promise.all([client.fetchModel(), client.downloadBytes()]);
+    // No coalescing for remote syncs: every detected server-side change is a
+    // distinct version (unchanged polls are no-ops via content dedupe).
+    const result = this.store.commit(doc.path, bytes, model, { message: 'Synced from Grist' });
+    if (result.created) {
+      this.onChanged(documentId);
+      this.propagateFrom(documentId);
+    }
+    return result;
+  }
+
+  private startPoller(documentId: string): void {
+    if (this.pollers.has(documentId)) return;
+    const poller = setInterval(() => {
+      this.syncRemote(documentId).catch(() => {
+        // Server unreachable — versioning pauses until it comes back.
+      });
+    }, REMOTE_POLL_MS);
+    this.pollers.set(documentId, poller);
+  }
+
   // ── Versions ───────────────────────────────────────────────────────────
 
   saveVersion(documentId: string, message?: string): CommitResult {
     const doc = this.store.getDocument(documentId);
+    if (isRemoteKey(doc.path)) {
+      void this.syncRemote(documentId);
+      return { commit: this.headCommit(documentId)!, created: false };
+    }
     const result = this.commitPath(doc.path, message);
     if (result?.created) {
       this.onChanged(documentId);
@@ -151,8 +231,9 @@ export class DocumentService {
     const dir = join(tmpdir(), 'docgit-versions');
     mkdirSync(dir, { recursive: true });
     const stamp = commit.createdAt.slice(0, 16).replace(/[:T]/g, '-');
-    const ext = doc.name.includes('.') ? doc.name.slice(doc.name.lastIndexOf('.')) : '';
-    const base = ext ? doc.name.slice(0, -ext.length) : doc.name;
+    const remote = this.store.getRemote(commit.documentId);
+    const ext = remote?.kind === 'grist' ? '.grist' : doc.name.includes('.') ? doc.name.slice(doc.name.lastIndexOf('.')) : '';
+    const base = doc.name.includes('.') && !remote ? doc.name.slice(0, -ext.length) : doc.name;
     const path = join(dir, `${base} (version ${stamp})${ext}`);
     writeFileSync(path, this.store.getFileBytes(commit));
     return path;
@@ -212,7 +293,9 @@ export class DocumentService {
   // ── Live links (Excel → Word inline values) ───────────────────────────
 
   listWorkbooks(): DocumentSummary[] {
-    return this.store.listDocuments().filter((d) => d.path.toLowerCase().endsWith('.xlsx'));
+    return this.store
+      .listDocuments()
+      .filter((d) => d.path.toLowerCase().endsWith('.xlsx') || this.store.getRemote(d.id)?.kind === 'grist');
   }
 
   workbookSheets(sourceDocumentId: string): string[] {
@@ -223,7 +306,7 @@ export class DocumentService {
   workbookCell(sourceDocumentId: string, sheet: string, cellRef: string): { value: string; formula?: string } | null {
     const model = this.headModel(sourceDocumentId);
     if (model?.kind !== 'spreadsheet') return null;
-    const cell = model.sheets.find((s) => s.name === sheet)?.cells[cellRef.toUpperCase()];
+    const cell = model.sheets.find((s) => s.name === sheet)?.cells[normalizeCellRef(cellRef)];
     return cell ? { value: cell.v, ...(cell.f ? { formula: cell.f } : {}) } : null;
   }
 
@@ -272,7 +355,7 @@ export class DocumentService {
       docDocumentId: documentId,
       sourceDocumentId: payload.sourceDocumentId,
       sheet: payload.sheet,
-      cellRef: payload.cellRef.toUpperCase(),
+      cellRef: normalizeCellRef(payload.cellRef),
       format: JSON.stringify(payload.format),
       lastValue: display,
       lastSourceCommitId: sourceHead.id,
@@ -395,6 +478,7 @@ export class DocumentService {
 
   private writeFileFromCommit(documentId: string, commitId: string): void {
     const doc = this.store.getDocument(documentId);
+    if (isRemoteKey(doc.path)) return; // remote documents are never written back
     const commit = this.store.getCommit(commitId);
     writeFileSync(doc.path, this.store.getFileBytes(commit));
   }

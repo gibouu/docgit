@@ -203,6 +203,18 @@ body {
   font-weight: 560;
 }
 
+.doc-card-remote {
+  font-family: var(--dg-sans);
+  font-size: 11px;
+  font-weight: 700;
+  color: #2f5570;
+  background: #e4ecf2;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 .doc-card-path {
   font-size: 11px;
   color: var(--dg-ink-soft);
