@@ -12,6 +12,8 @@ type DialogState =
   | { kind: 'branch'; from: CommitRow }
   | { kind: 'send'; commit: CommitRow }
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
+  | { kind: 'renameVersion'; commit: CommitRow }
+  | { kind: 'renameBranch'; branch: BranchRow }
   | null;
 
 export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
@@ -175,17 +177,44 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               onRestore={() => void askRestore(selected[0]!)}
               onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
               onSwitchTo={(branchId) => void window.docgit.switchBranch(doc.id, branchId)}
-              onRename={(commit) => {
-                const message = window.prompt('Rename this version', commit.message ?? '');
-                if (message?.trim()) void window.docgit.renameVersion(doc.id, commit.id, message.trim());
-              }}
+              onRename={(commit) => setDialog({ kind: 'renameVersion', commit })}
             />
           ) : (
-            <BranchPanel graph={graph} onCompareToMain={(b) => void compareBranchToMain(b)} />
+            <BranchPanel
+              graph={graph}
+              onCompareToMain={(b) => void compareBranchToMain(b)}
+              onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+            />
           )}
         </aside>
       </div>
 
+      {dialog?.kind === 'renameVersion' && (
+        <NameDialog
+          title="Rename this version"
+          placeholder="e.g. “Fees negotiated v2”"
+          initial={dialog.commit.message ?? ''}
+          submitLabel="Rename"
+          onClose={() => setDialog(null)}
+          onSubmit={async (name) => {
+            await window.docgit.renameVersion(doc.id, dialog.commit.id, name);
+            setDialog(null);
+          }}
+        />
+      )}
+      {dialog?.kind === 'renameBranch' && (
+        <NameDialog
+          title={`Rename branch “${dialog.branch.name}”`}
+          placeholder="Branch name"
+          initial={dialog.branch.name}
+          submitLabel="Rename"
+          onClose={() => setDialog(null)}
+          onSubmit={async (name) => {
+            await window.docgit.renameBranch(doc.id, dialog.branch.id, name);
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
@@ -319,7 +348,52 @@ function VersionDetails(props: {
 
 const SWATCHES = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16'];
 
-function BranchPanel({ graph, onCompareToMain }: { graph: DocumentGraph; onCompareToMain: (b: BranchRow) => void }) {
+function NameDialog(props: {
+  title: string;
+  placeholder: string;
+  initial: string;
+  submitLabel: string;
+  onClose: () => void;
+  onSubmit: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(props.initial);
+  const submit = () => {
+    if (name.trim()) void props.onSubmit(name.trim());
+  };
+  return (
+    <Modal title={props.title} onClose={props.onClose}>
+      <input
+        autoFocus
+        className="input"
+        placeholder={props.placeholder}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onFocus={(e) => e.target.select()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+        }}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={submit}>
+          {props.submitLabel}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function BranchPanel({
+  graph,
+  onCompareToMain,
+  onRenameBranch,
+}: {
+  graph: DocumentGraph;
+  onCompareToMain: (b: BranchRow) => void;
+  onRenameBranch: (b: BranchRow) => void;
+}) {
   const docId = graph.document.id;
   const trunk = graph.branches[0];
   return (
@@ -353,14 +427,7 @@ function BranchPanel({ graph, onCompareToMain }: { graph: DocumentGraph; onCompa
                   </button>
                 )}
                 {isCurrent && <span className="branch-current-tag">current</span>}
-                <button
-                  type="button"
-                  className="btn btn-mini"
-                  onClick={() => {
-                    const name = window.prompt('Rename branch', branch.name);
-                    if (name?.trim()) void window.docgit.renameBranch(docId, branch.id, name.trim());
-                  }}
-                >
+                <button type="button" className="btn btn-mini" onClick={() => onRenameBranch(branch)}>
                   Rename
                 </button>
                 <select
