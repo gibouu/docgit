@@ -4,7 +4,16 @@ Git-style version control for office documents — without the git.
 
 DocGit gives professionals who iterate on high-stakes documents (contracts, business plans, CVs, per-client and multilingual variants) a visual version tree, branching, send-tracking, and trustworthy side-by-side diffs for Word, Excel and PowerPoint documents — plus La Suite Docs and Grist.
 
-**Local-first:** documents and their history never leave your machine.
+## Privacy: local only, no exceptions
+
+DocGit transfers nothing and keeps nothing outside your Mac:
+
+- **No servers, no accounts, no telemetry, no analytics, no crash reporting.** The app makes zero network calls of its own.
+- **Your documents and their entire version history live in one place:** `~/Library/Application Support/DocGit/` on your machine. Delete that folder and the app's data is gone.
+- The **only** network activity ever performed is to servers **you explicitly connect** (e.g. your own Grist instance via "Connect Grist…"), and that connection is read-only.
+- Fonts and all assets are bundled — nothing is fetched at runtime.
+
+This is verifiable in the source: the codebase is open under the [MIT license](LICENSE).
 
 ## Structure
 
