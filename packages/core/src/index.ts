@@ -27,6 +27,7 @@ export {
   type DocumentSummary,
   type LinkRow,
   type SendRow,
+  type UpstreamStatus,
 } from './store/store.js';
 export { formatValue, type ValueFormat } from './links/format.js';
 export {

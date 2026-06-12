@@ -3,6 +3,7 @@ import type { DocumentSummary } from '@docgit/core';
 export interface LibraryProps {
   documents: DocumentSummary[];
   onOpen: (doc: DocumentSummary) => void;
+  onShowHistory: () => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -10,7 +11,7 @@ export interface LibraryProps {
  * The hub: every tracked document lives here. Users open documents through
  * DocGit so every Word save quietly becomes a version.
  */
-export function Library({ documents, onOpen, onRefresh }: LibraryProps) {
+export function Library({ documents, onOpen, onShowHistory, onRefresh }: LibraryProps) {
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
     if (added) await onRefresh();
@@ -25,9 +26,16 @@ export function Library({ documents, onOpen, onRefresh }: LibraryProps) {
             Every save becomes a version. Branch freely — nothing is ever lost, nothing leaves this Mac.
           </p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => void addDocument()}>
-          + Add document
-        </button>
+        <div className="library-actions">
+          {documents.length > 0 && (
+            <button type="button" className="btn" onClick={onShowHistory}>
+              ✉ Sent history
+            </button>
+          )}
+          <button type="button" className="btn btn-primary" onClick={() => void addDocument()}>
+            + Add document
+          </button>
+        </div>
       </header>
 
       {documents.length === 0 ? (

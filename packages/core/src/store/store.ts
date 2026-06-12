@@ -40,6 +40,21 @@ export interface BranchRow {
   archived: boolean;
   position: number;
   createdAt: string;
+  /** The commit this branch forked from (null for trunk / pre-v3 branches). */
+  forkedFromCommitId: string | null;
+  /** Upstream commit this branch last declared itself caught up with. */
+  syncedUpstreamCommitId: string | null;
+}
+
+/** How far a branch trails the branch it forked from. */
+export interface UpstreamStatus {
+  upstreamBranchId: string;
+  upstreamBranchName: string;
+  /** Commits on the upstream branch since the fork (or last catch-up). */
+  behind: number;
+  /** Base for "what changed upstream" diffs. */
+  baseCommitId: string;
+  upstreamHeadCommitId: string;
 }
 
 export interface CommitRow {
@@ -170,11 +185,24 @@ export class SnapshotStore {
       );
       CREATE INDEX IF NOT EXISTS idx_links_doc ON links(doc_document_id);
       CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_document_id);
+    `);
+    // Columns added after v2 shipped — idempotent ALTERs for existing stores.
+    this.ensureColumn('branches', 'forked_from_commit_id TEXT');
+    this.ensureColumn('branches', 'synced_upstream_commit_id TEXT');
+    this.db.exec(`
+      PRAGMA user_version = 3;
       CREATE INDEX IF NOT EXISTS idx_commits_document ON commits(document_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_branches_document ON branches(document_id, position);
       CREATE INDEX IF NOT EXISTS idx_sends_commit ON sends(commit_id);
-      PRAGMA user_version = 2;
     `);
+  }
+
+  private ensureColumn(table: string, ddl: string): void {
+    try {
+      this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+    } catch {
+      // column already exists
+    }
   }
 
   close(): void {
@@ -304,8 +332,11 @@ export class SnapshotStore {
     const children = this.db.prepare('SELECT COUNT(*) AS n FROM commits WHERE parent_id = ?').get(head.id) as { n: number };
     if (Number(children.n) > 0) return false;
     const forks = this.db
-      .prepare('SELECT COUNT(*) AS n FROM branches WHERE head_commit_id = ? AND id != ?')
-      .get(head.id, head.branchId) as { n: number };
+      .prepare(
+        `SELECT COUNT(*) AS n FROM branches
+         WHERE (head_commit_id = ? AND id != ?) OR forked_from_commit_id = ? OR synced_upstream_commit_id = ?`,
+      )
+      .get(head.id, head.branchId, head.id, head.id) as { n: number };
     return Number(forks.n) === 0;
   }
 
@@ -490,9 +521,20 @@ export class SnapshotStore {
     try {
       this.db
         .prepare(
-          'INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)',
+          `INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at, forked_from_commit_id, synced_upstream_commit_id)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
         )
-        .run(id, documentId, name, color ?? BRANCH_COLORS[position % BRANCH_COLORS.length]!, fromCommitId, position, nowIso());
+        .run(
+          id,
+          documentId,
+          name,
+          color ?? BRANCH_COLORS[position % BRANCH_COLORS.length]!,
+          fromCommitId,
+          position,
+          nowIso(),
+          fromCommitId,
+          fromCommitId,
+        );
       this.db.prepare('UPDATE documents SET current_branch_id = ? WHERE id = ?').run(id, documentId);
       this.db.exec('COMMIT');
     } catch (err) {
@@ -530,7 +572,83 @@ export class SnapshotStore {
     return this.getBranch(branchId);
   }
 
+  /**
+   * How far a branch trails its upstream (the branch it forked from), counted
+   * from its last catch-up point. Null for the trunk, pre-v3 branches, or
+   * when the base is no longer reachable from the upstream head.
+   */
+  upstreamStatus(branchId: string): UpstreamStatus | null {
+    const branch = this.getBranch(branchId);
+    if (!branch.forkedFromCommitId) return null;
+    const fork = this.getCommit(branch.forkedFromCommitId);
+    if (fork.branchId === branchId) return null; // forked from itself somehow — no upstream
+    const upstream = this.getBranch(fork.branchId);
+    if (!upstream.headCommitId) return null;
+
+    const base = branch.syncedUpstreamCommitId ?? branch.forkedFromCommitId;
+    let cursor: string | null = upstream.headCommitId;
+    let behind = 0;
+    while (cursor) {
+      if (cursor === base) {
+        return {
+          upstreamBranchId: upstream.id,
+          upstreamBranchName: upstream.name,
+          behind,
+          baseCommitId: base,
+          upstreamHeadCommitId: upstream.headCommitId,
+        };
+      }
+      const row = this.db.prepare('SELECT parent_id FROM commits WHERE id = ?').get(cursor) as
+        | { parent_id: string | null }
+        | undefined;
+      cursor = row?.parent_id ?? null;
+      behind++;
+    }
+    return null; // base unreachable — history diverged in a way we can't count
+  }
+
+  /** Declare a branch caught up with its upstream's current head. */
+  markSyncedWithUpstream(branchId: string): BranchRow {
+    const status = this.upstreamStatus(branchId);
+    if (status) {
+      this.db
+        .prepare('UPDATE branches SET synced_upstream_commit_id = ? WHERE id = ?')
+        .run(status.upstreamHeadCommitId, branchId);
+    }
+    return this.getBranch(branchId);
+  }
+
   // ── Sends ──────────────────────────────────────────────────────────────
+
+  /** Everyone anything was ever sent to, most recent first. */
+  recipients(): { recipient: string; sendCount: number; lastSentAt: string }[] {
+    const rows = this.db
+      .prepare(
+        'SELECT recipient, COUNT(*) AS n, MAX(sent_at) AS last FROM sends GROUP BY recipient ORDER BY last DESC',
+      )
+      .all() as unknown as { recipient: string; n: number; last: string }[];
+    return rows.map((r) => ({ recipient: r.recipient, sendCount: Number(r.n), lastSentAt: r.last }));
+  }
+
+  /** Every version ever sent to one recipient, across all documents. */
+  sendsToRecipient(recipient: string): (SendRow & { documentId: string; documentName: string; commitMessage: string | null })[] {
+    const rows = this.db
+      .prepare(
+        `SELECT s.*, c.document_id, c.message AS commit_message, d.name AS document_name
+         FROM sends s
+         JOIN commits c ON c.id = s.commit_id
+         JOIN documents d ON d.id = c.document_id
+         WHERE s.recipient = ?
+         ORDER BY s.sent_at DESC`,
+      )
+      .all(recipient) as unknown as (RawSend & { document_id: string; commit_message: string | null; document_name: string })[];
+    return rows.map((row) => ({
+      ...rowToSend(row),
+      documentId: row.document_id,
+      documentName: row.document_name,
+      commitMessage: row.commit_message,
+    }));
+  }
 
   markSent(
     commitId: string,
@@ -646,6 +764,8 @@ interface RawBranch {
   archived: number;
   position: number;
   created_at: string;
+  forked_from_commit_id: string | null;
+  synced_upstream_commit_id: string | null;
 }
 
 interface RawCommit {
@@ -715,6 +835,8 @@ function rowToBranch(row: RawBranch): BranchRow {
     archived: row.archived !== 0,
     position: Number(row.position),
     createdAt: row.created_at,
+    forkedFromCommitId: row.forked_from_commit_id ?? null,
+    syncedUpstreamCommitId: row.synced_upstream_commit_id ?? null,
   };
 }
 
