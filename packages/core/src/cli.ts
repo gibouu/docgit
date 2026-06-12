@@ -7,6 +7,7 @@ import pc from 'picocolors';
 import { parseDocument } from './adapters/parse.js';
 import { diffModels, type Change } from './diff/diff.js';
 import type { SpreadsheetDiff } from './diff/spreadsheet.js';
+import type { SlidesDiff } from './diff/slides.js';
 import { blockText } from './model/types.js';
 import { SnapshotStore } from './store/store.js';
 
@@ -87,6 +88,10 @@ program
         printSpreadsheetDiff(diff);
         return;
       }
+      if (diff.kind === 'slides') {
+        printSlidesDiff(diff);
+        return;
+      }
 
       const { changes, summary } = diff;
       console.log(
@@ -127,6 +132,13 @@ program
     try {
       const commit = store.resolve(ref);
       const model = store.getModel(commit);
+      if (model.kind === 'slides') {
+        model.slides.forEach((slide, i) => {
+          console.log(pc.bold(`Slide ${i + 1}`));
+          for (const shape of slide.shapes) console.log(`  [${shape.name}] ${shape.text.replace(/\n/g, ' ⏎ ')}`);
+        });
+        return;
+      }
       if (model.kind === 'spreadsheet') {
         for (const sheet of model.sheets) {
           console.log(pc.bold(sheet.name));
@@ -159,6 +171,31 @@ function printSpreadsheetDiff(diff: SpreadsheetDiff): void {
     if (change.type === 'added') console.log(pc.green(`+ ${cellRef} = ${fmt(change.newValue)}`));
     else if (change.type === 'removed') console.log(pc.red(`− ${cellRef} = ${fmt(change.oldValue)}`));
     else console.log(`${pc.yellow('~')} ${cellRef}: ${pc.red(fmt(change.oldValue))} → ${pc.green(fmt(change.newValue))}`);
+  }
+}
+
+function printSlidesDiff(diff: SlidesDiff): void {
+  const s = diff.summary;
+  console.log(
+    pc.bold(
+      `${pc.green(`+${s.slidesAdded}`)} ${pc.red(`−${s.slidesRemoved}`)} ${pc.yellow(`~${s.slidesModified}`)} ` +
+        `${pc.cyan(`↕${s.slidesMoved} moved`)} slides ` +
+        pc.dim(`(${s.slidesUnchanged} unchanged, ${s.shapesChanged} shapes changed)`),
+    ),
+  );
+  for (const change of diff.slideChanges) {
+    if (change.type === 'unchanged') continue;
+    const pos =
+      change.type === 'moved'
+        ? `slide ${change.oldIndex! + 1} → ${change.newIndex! + 1}`
+        : `slide ${(change.newIndex ?? change.oldIndex ?? 0) + 1}`;
+    const color = change.type === 'added' ? pc.green : change.type === 'removed' ? pc.red : change.type === 'moved' ? pc.cyan : pc.yellow;
+    console.log(color(`${change.type}: ${pos}`));
+    for (const shape of change.shapeChanges) {
+      if (shape.type === 'added') console.log(pc.green(`  + [${shape.name}] ${shape.newText}`));
+      else if (shape.type === 'removed') console.log(pc.red(`  − [${shape.name}] ${shape.oldText}`));
+      else console.log(pc.yellow(`  ~ [${shape.name}] ${shape.oldText} → ${shape.newText}`));
+    }
   }
 }
 

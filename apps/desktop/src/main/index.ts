@@ -38,9 +38,10 @@ function registerIpc(svc: DocumentService): void {
     const result = await dialog.showOpenDialog(win!, {
       title: 'Add a document to DocGit',
       filters: [
-        { name: 'Documents', extensions: ['docx', 'xlsx'] },
+        { name: 'Documents', extensions: ['docx', 'xlsx', 'pptx'] },
         { name: 'Word documents', extensions: ['docx'] },
         { name: 'Excel workbooks', extensions: ['xlsx'] },
+        { name: 'PowerPoint presentations', extensions: ['pptx'] },
       ],
       properties: ['openFile'],
     });
@@ -258,6 +259,44 @@ async function runSmokeTest(): Promise<void> {
     if (!updateCommit) throw new Error('link refresh was not recorded as a version');
     const linkInfos = svc.links(wdoc.id);
     if (linkInfos.length !== 1 || linkInfos[0]!.stale) throw new Error('link registry inconsistent after refresh');
+
+    // PowerPoint leg (#5): track a .pptx and get a slide-level diff.
+    const makePptxDoc = (slides: { id: string; title: string }[]): Uint8Array => {
+      const parts: Record<string, Uint8Array> = {
+        '[Content_Types].xml': strToU8(
+          '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/></Types>',
+        ),
+        'ppt/presentation.xml': strToU8(
+          `<?xml version="1.0"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><p:sldIdLst>${slides
+            .map((s, i) => `<p:sldId id="${s.id}" r:id="rId${i + 1}"/>`)
+            .join('')}</p:sldIdLst></p:presentation>`,
+        ),
+        'ppt/_rels/presentation.xml.rels': strToU8(
+          `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${slides
+            .map(
+              (_s, i) =>
+                `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${i + 1}.xml"/>`,
+            )
+            .join('')}</Relationships>`,
+        ),
+      };
+      slides.forEach((s, i) => {
+        parts[`ppt/slides/slide${i + 1}.xml`] = strToU8(
+          `<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Title 1"/></p:nvSpPr><p:txBody><a:p><a:r><a:t>${s.title}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>`,
+        );
+      });
+      return zipSync(parts);
+    };
+    const pptxPath = join(dir, 'deck.pptx');
+    writeFileSync(pptxPath, makePptxDoc([{ id: '256', title: 'Q3 results' }]));
+    const pdoc = svc.addDocument(pptxPath);
+    writeFileSync(pptxPath, makePptxDoc([{ id: '256', title: 'Q3 outstanding results' }, { id: '257', title: 'Outlook' }]));
+    svc.saveVersion(pdoc.id, 'deck update');
+    const pgraph = svc.getGraph(pdoc.id);
+    const pdiff = svc.diff(pgraph.commits[0]!.id, pgraph.commits[1]!.id);
+    if (pdiff.kind !== 'slides' || pdiff.summary.slidesModified !== 1 || pdiff.summary.slidesAdded !== 1) {
+      throw new Error(`unexpected pptx diff: ${JSON.stringify(pdiff.kind === 'slides' ? pdiff.summary : pdiff.kind)}`);
+    }
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);

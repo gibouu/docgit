@@ -1,8 +1,10 @@
 import { diffArrays, diffWords } from 'diff';
 import { blockText, type Block, type DocModel, type TextDocModel } from '../model/types.js';
 import { diffSpreadsheetModels, type SpreadsheetDiff } from './spreadsheet.js';
+import { diffSlideModels, type SlidesDiff } from './slides.js';
 
 export type { CellChange, SpreadsheetDiff, SpreadsheetDiffSummary } from './spreadsheet.js';
+export type { ShapeChange, SlideChange, SlidesDiff, SlidesDiffSummary } from './slides.js';
 
 /**
  * Paragraph-level content diff between two normalized models.
@@ -64,7 +66,7 @@ export interface TextDiff {
   summary: DiffSummary;
 }
 
-export type DocDiff = TextDiff | SpreadsheetDiff;
+export type DocDiff = TextDiff | SpreadsheetDiff | SlidesDiff;
 
 /** Minimum token-Dice similarity for a removed/added pair to count as an edit of the same paragraph. */
 const MODIFIED_THRESHOLD = 0.4;
@@ -73,6 +75,9 @@ const MODIFIED_THRESHOLD = 0.4;
 export function diffModels(oldModel: DocModel, newModel: DocModel): DocDiff {
   if (oldModel.kind === 'spreadsheet' && newModel.kind === 'spreadsheet') {
     return diffSpreadsheetModels(oldModel, newModel);
+  }
+  if (oldModel.kind === 'slides' && newModel.kind === 'slides') {
+    return diffSlideModels(oldModel, newModel);
   }
   if (oldModel.kind === 'text' && newModel.kind === 'text') {
     return diffTextModels(oldModel, newModel);
