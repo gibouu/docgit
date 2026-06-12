@@ -1,6 +1,6 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
-import type { Block, DocModel, ParagraphBlock } from '../../model/types.js';
+import type { Block, ParagraphBlock, TextDocModel } from '../../model/types.js';
 
 /**
  * Word (.docx) adapter — parse side.
@@ -53,7 +53,7 @@ function findChild(nodes: XNode[], tag: string): XNode | undefined {
   return nodes.find((n) => tagOf(n) === tag);
 }
 
-export function parseDocx(data: Uint8Array): DocModel {
+export function parseDocx(data: Uint8Array): TextDocModel {
   const files = unzipSync(data);
   const documentXml = files['word/document.xml'];
   if (!documentXml) {

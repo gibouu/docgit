@@ -1,11 +1,12 @@
 import { Fragment, useMemo, useState } from 'react';
 import { blockText } from '@docgit/core/model';
-import type { Change, DocDiff, WordSpan } from '@docgit/core/diff';
+import type { CellChange, Change, DocDiff, SpreadsheetDiff, TextDiff, WordSpan } from '@docgit/core/diff';
 
 /**
  * GitHub-PR-style side-by-side diff: old version left, new version right.
- * Content changes are primary; formatting changes live in a collapsible
- * section at the bottom. Long unchanged runs collapse to a single row.
+ * Text documents: content changes primary, formatting collapsible, long
+ * unchanged runs collapsed. Spreadsheets: per-sheet changed-cell tables with
+ * formula changes distinguished from value changes.
  */
 
 export interface DiffViewProps {
@@ -20,7 +21,14 @@ type DiffRow =
   | { kind: 'change'; change: Change; key: string }
   | { kind: 'collapsed'; changes: Change[]; key: string };
 
-export function DiffView({ diff, oldLabel, newLabel }: DiffViewProps) {
+export function DiffView(props: DiffViewProps) {
+  if (props.diff.kind === 'spreadsheet') {
+    return <SpreadsheetDiffView diff={props.diff} oldLabel={props.oldLabel} newLabel={props.newLabel} />;
+  }
+  return <TextDiffView diff={props.diff} oldLabel={props.oldLabel} newLabel={props.newLabel} />;
+}
+
+function TextDiffView({ diff, oldLabel, newLabel }: { diff: TextDiff; oldLabel: string; newLabel: string }) {
   const { changes, summary } = diff;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showFormatting, setShowFormatting] = useState(false);
@@ -84,6 +92,79 @@ export function DiffView({ diff, oldLabel, newLabel }: DiffViewProps) {
         </section>
       )}
     </div>
+  );
+}
+
+function SpreadsheetDiffView({ diff, oldLabel, newLabel }: { diff: SpreadsheetDiff; oldLabel: string; newLabel: string }) {
+  const { summary, cellChanges } = diff;
+  const bySheet = new Map<string, CellChange[]>();
+  for (const change of cellChanges) {
+    const list = bySheet.get(change.sheet) ?? [];
+    list.push(change);
+    bySheet.set(change.sheet, list);
+  }
+
+  return (
+    <div className="dg-diff">
+      <header className="dg-diff-summary">
+        <span className="dg-chip dg-chip-added">+{summary.cellsAdded} cells</span>
+        <span className="dg-chip dg-chip-removed">−{summary.cellsRemoved} cells</span>
+        <span className="dg-chip dg-chip-modified">{summary.cellsModified} changed</span>
+        <span className="dg-chip dg-chip-formula">ƒ {summary.formulasChanged} formulas</span>
+        <span className="dg-chip dg-chip-quiet">{summary.cellsUnchanged} unchanged</span>
+      </header>
+
+      {(summary.sheetsAdded.length > 0 || summary.sheetsRemoved.length > 0) && (
+        <p className="dg-sheet-events">
+          {summary.sheetsAdded.map((name) => (
+            <span key={`a${name}`} className="dg-chip dg-chip-added">+ sheet “{name}”</span>
+          ))}
+          {summary.sheetsRemoved.map((name) => (
+            <span key={`r${name}`} className="dg-chip dg-chip-removed">− sheet “{name}”</span>
+          ))}
+        </p>
+      )}
+
+      {cellChanges.length === 0 ? (
+        <p className="dg-sheet-empty">No cell changes between these versions.</p>
+      ) : (
+        [...bySheet.entries()].map(([sheetName, changes]) => (
+          <section key={sheetName} className="dg-sheet">
+            <h3 className="dg-sheet-name">{sheetName}</h3>
+            <div className="dg-cells">
+              <div className="dg-cells-head">
+                <span>Cell</span>
+                <span>{oldLabel}</span>
+                <span>{newLabel}</span>
+              </div>
+              {changes.map((change) => (
+                <div key={change.ref} className={`dg-cells-row dg-cells-${change.type}`}>
+                  <span className="dg-cell-ref">
+                    {change.ref}
+                    {change.formulaChanged && <span className="dg-cell-fmark" title="Formula changed"> ƒ</span>}
+                  </span>
+                  <span className="dg-cell-old">
+                    {change.oldValue ? <CellContent value={change.oldValue} /> : <span className="dg-cell-none">—</span>}
+                  </span>
+                  <span className="dg-cell-new">
+                    {change.newValue ? <CellContent value={change.newValue} /> : <span className="dg-cell-none">—</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
+function CellContent({ value }: { value: { v: string; f?: string } }) {
+  return (
+    <Fragment>
+      <span>{value.v}</span>
+      {value.f && <code className="dg-cell-formula">{value.f}</code>}
+    </Fragment>
   );
 }
 

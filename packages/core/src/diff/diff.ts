@@ -1,5 +1,8 @@
 import { diffArrays, diffWords } from 'diff';
-import { blockText, type Block, type DocModel } from '../model/types.js';
+import { blockText, type Block, type DocModel, type TextDocModel } from '../model/types.js';
+import { diffSpreadsheetModels, type SpreadsheetDiff } from './spreadsheet.js';
+
+export type { CellChange, SpreadsheetDiff, SpreadsheetDiffSummary } from './spreadsheet.js';
 
 /**
  * Paragraph-level content diff between two normalized models.
@@ -55,15 +58,29 @@ export interface DiffSummary {
   formatting: number;
 }
 
-export interface DocDiff {
+export interface TextDiff {
+  kind: 'text';
   changes: Change[];
   summary: DiffSummary;
 }
 
+export type DocDiff = TextDiff | SpreadsheetDiff;
+
 /** Minimum token-Dice similarity for a removed/added pair to count as an edit of the same paragraph. */
 const MODIFIED_THRESHOLD = 0.4;
 
+/** Diff two normalized models of the same kind. */
 export function diffModels(oldModel: DocModel, newModel: DocModel): DocDiff {
+  if (oldModel.kind === 'spreadsheet' && newModel.kind === 'spreadsheet') {
+    return diffSpreadsheetModels(oldModel, newModel);
+  }
+  if (oldModel.kind === 'text' && newModel.kind === 'text') {
+    return diffTextModels(oldModel, newModel);
+  }
+  throw new Error('Cannot compare documents of different kinds');
+}
+
+export function diffTextModels(oldModel: TextDocModel, newModel: TextDocModel): TextDiff {
   const oldBlocks = oldModel.blocks;
   const newBlocks = newModel.blocks;
   const oldKeys = oldBlocks.map(blockText);
@@ -122,7 +139,7 @@ export function diffModels(oldModel: DocModel, newModel: DocModel): DocDiff {
   detectMoves(changes);
   detectFormattingChanges(changes);
 
-  return { changes, summary: summarize(changes) };
+  return { kind: 'text', changes, summary: summarize(changes) };
 }
 
 /** Flag style/numbering differences on pairs whose content matched or was paired. */

@@ -23,10 +23,29 @@ export interface TableBlock {
 
 export type Block = ParagraphBlock | TableBlock;
 
-export interface DocModel {
+export interface TextDocModel {
   kind: 'text';
   blocks: Block[];
 }
+
+/** A single cell: display value, plus the formula when the cell is computed. */
+export interface CellValue {
+  v: string;
+  f?: string;
+}
+
+export interface SheetModel {
+  name: string;
+  /** Cell reference ("A1") → value. Only non-empty cells are present. */
+  cells: Record<string, CellValue>;
+}
+
+export interface SpreadsheetModel {
+  kind: 'spreadsheet';
+  sheets: SheetModel[];
+}
+
+export type DocModel = TextDocModel | SpreadsheetModel;
 
 /** Canonical text content of a block — the unit the content diff compares. */
 export function blockText(block: Block): string {
