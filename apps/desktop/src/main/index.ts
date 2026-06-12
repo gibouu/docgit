@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { DocumentService } from './service.js';
+import { detectCloudProvider, DocumentService } from './service.js';
 
 // One identity everywhere (dev and packaged): data lives under
 // ~/Library/Application Support/DocGit.
@@ -72,6 +72,8 @@ function registerIpc(svc: DocumentService): void {
     return svc.addDocument(result.filePaths[0]!);
   });
 
+  ipcMain.handle('docs:cloudStatus', (_e, documentId: string) => svc.cloudStatus(documentId));
+  ipcMain.handle('docs:addPath', (_e, path: string) => svc.addDocumentByPath(path));
   ipcMain.handle('docs:open', (_e, documentId: string) => {
     const target = svc.openTarget(documentId);
     return target.kind === 'url' ? shell.openExternal(target.target) : shell.openPath(target.target);
@@ -392,6 +394,26 @@ async function runSmokeTest(): Promise<void> {
     const memoText = parseDocx(readFileSync(memoPath)).blocks.map((b) => ('text' in b ? b.text : '')).join(' ');
     if (!memoText.includes('1500')) throw new Error(`grist change did not propagate into the document: ${memoText}`);
     gristServer.close();
+
+    // Cloud guards (#24): provider detection + conflict-copy discovery.
+    const cloudCases: [string, string | null][] = [
+      ['/Users/x/Library/Mobile Documents/com~apple~CloudDocs/Shared/c.docx', 'iCloud Drive'],
+      ['/Users/x/Library/CloudStorage/OneDrive-KUZOG/plans/c.docx', 'OneDrive'],
+      ['/Users/x/Library/CloudStorage/Dropbox/c.docx', 'Dropbox'],
+      ['/Users/x/Library/CloudStorage/GoogleDrive-me@x.com/My Drive/c.docx', 'Google Drive'],
+      ['/Users/x/Documents/local.docx', null],
+    ];
+    for (const [casePath, expected] of cloudCases) {
+      if (detectCloudProvider(casePath) !== expected) {
+        throw new Error(`cloud detection wrong for ${casePath}`);
+      }
+    }
+    writeFileSync(join(dir, 'smoke 2.docx'), makeDocx(['conflict copy']));
+    writeFileSync(join(dir, 'smoke (1).docx'), makeDocx(['another conflict']));
+    const cloudStatus = svc.cloudStatus(doc.id); // doc is smoke.docx in the same dir
+    if (cloudStatus.conflictCopies.length !== 2) {
+      throw new Error(`conflict copies not detected: ${JSON.stringify(cloudStatus.conflictCopies)}`);
+    }
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);

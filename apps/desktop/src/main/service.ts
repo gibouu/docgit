@@ -23,9 +23,27 @@ import {
 } from '@docgit/core';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
+
+export type CloudProvider = 'iCloud Drive' | 'OneDrive' | 'Dropbox' | 'Google Drive';
+
+export interface CloudStatus {
+  /** Set when the file lives in a cloud-synced folder (possibly shared with others). */
+  provider: CloudProvider | null;
+  /** Sibling conflict copies ("Contract 2.docx", "Contract (1).docx") the sync service created. */
+  conflictCopies: string[];
+}
+
+/** Cloud-synced locations on macOS: iCloud's Mobile Documents and the FileProvider mounts. */
+export function detectCloudProvider(path: string): CloudProvider | null {
+  if (path.includes('/Library/Mobile Documents/')) return 'iCloud Drive';
+  if (path.includes('/Library/CloudStorage/OneDrive')) return 'OneDrive';
+  if (path.includes('/Library/CloudStorage/Dropbox') || /\/Dropbox\//.test(path)) return 'Dropbox';
+  if (path.includes('/Library/CloudStorage/GoogleDrive')) return 'Google Drive';
+  return null;
+}
 
 export interface LinkInfo {
   link: LinkRow;
@@ -116,6 +134,39 @@ export class DocumentService {
 
   documentPath(documentId: string): string {
     return this.store.getDocument(documentId).path;
+  }
+
+  /** Cloud-sync situation for a document: provider + any conflict copies next to it. */
+  cloudStatus(documentId: string): CloudStatus {
+    const doc = this.store.getDocument(documentId);
+    if (isRemoteKey(doc.path)) return { provider: null, conflictCopies: [] };
+    return { provider: detectCloudProvider(doc.path), conflictCopies: this.findConflictCopies(doc.path) };
+  }
+
+  /** Track a document by explicit path (e.g. adopting a conflict copy). */
+  addDocumentByPath(path: string): DocumentRow {
+    return this.addDocument(path);
+  }
+
+  /**
+   * Sync services resolve concurrent edits by dropping a renamed copy next
+   * to the original — "Contract 2.docx" (iCloud), "Contract (1).docx"
+   * (OneDrive/Drive). Those may hold someone else's latest work.
+   */
+  private findConflictCopies(path: string): string[] {
+    const dir = dirname(path);
+    const name = basename(path);
+    const ext = extname(name);
+    const base = name.slice(0, name.length - ext.length);
+    const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^${escaped}(?: \\d+| \\(\\d+\\))${ext.replace('.', '\\.')}$`, 'i');
+    try {
+      return readdirSync(dir)
+        .filter((entry) => pattern.test(entry))
+        .map((entry) => join(dir, entry));
+    } catch {
+      return [];
+    }
   }
 
   /** Where "open" should take the user: the file on disk, or the remote editor. */
