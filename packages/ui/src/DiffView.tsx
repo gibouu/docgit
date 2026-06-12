@@ -1,6 +1,15 @@
 import { Fragment, useMemo, useState } from 'react';
 import { blockText } from '@docgit/core/model';
-import type { CellChange, Change, DocDiff, SpreadsheetDiff, TextDiff, WordSpan } from '@docgit/core/diff';
+import type {
+  CellChange,
+  Change,
+  DocDiff,
+  ShapeChange,
+  SlidesDiff,
+  SpreadsheetDiff,
+  TextDiff,
+  WordSpan,
+} from '@docgit/core/diff';
 
 /**
  * GitHub-PR-style side-by-side diff: old version left, new version right.
@@ -24,6 +33,9 @@ type DiffRow =
 export function DiffView(props: DiffViewProps) {
   if (props.diff.kind === 'spreadsheet') {
     return <SpreadsheetDiffView diff={props.diff} oldLabel={props.oldLabel} newLabel={props.newLabel} />;
+  }
+  if (props.diff.kind === 'slides') {
+    return <SlidesDiffView diff={props.diff} oldLabel={props.oldLabel} newLabel={props.newLabel} />;
   }
   return <TextDiffView diff={props.diff} oldLabel={props.oldLabel} newLabel={props.newLabel} />;
 }
@@ -165,6 +177,80 @@ function CellContent({ value }: { value: { v: string; f?: string } }) {
       <span>{value.v}</span>
       {value.f && <code className="dg-cell-formula">{value.f}</code>}
     </Fragment>
+  );
+}
+
+function SlidesDiffView({ diff, oldLabel, newLabel }: { diff: SlidesDiff; oldLabel: string; newLabel: string }) {
+  const { summary, slideChanges } = diff;
+  const interesting = slideChanges.filter((c) => c.type !== 'unchanged');
+
+  return (
+    <div className="dg-diff">
+      <header className="dg-diff-summary">
+        <span className="dg-chip dg-chip-added">+{summary.slidesAdded} slides</span>
+        <span className="dg-chip dg-chip-removed">−{summary.slidesRemoved} slides</span>
+        <span className="dg-chip dg-chip-modified">{summary.slidesModified} edited</span>
+        {summary.slidesMoved > 0 && <span className="dg-chip dg-chip-moved">{summary.slidesMoved} moved</span>}
+        <span className="dg-chip dg-chip-quiet">{summary.slidesUnchanged} unchanged</span>
+      </header>
+
+      <div className="dg-diff-columns" aria-hidden>
+        <div className="dg-diff-col-label">{oldLabel}</div>
+        <div className="dg-diff-col-label">{newLabel}</div>
+      </div>
+
+      {interesting.length === 0 ? (
+        <p className="dg-sheet-empty">No slide changes between these versions.</p>
+      ) : (
+        interesting.map((change) => (
+          <section key={change.slideId} className={`dg-slide dg-slide-${change.type}`}>
+            <h3 className="dg-slide-head">
+              {change.type === 'added' && <span className="dg-chip dg-chip-added">new</span>}
+              {change.type === 'removed' && <span className="dg-chip dg-chip-removed">removed</span>}
+              {change.type === 'moved' && <span className="dg-chip dg-chip-moved">moved</span>}
+              {change.type === 'modified' && <span className="dg-chip dg-chip-modified">edited</span>}
+              <span>
+                Slide {(change.newIndex ?? change.oldIndex ?? 0) + 1}
+                {change.oldIndex !== undefined &&
+                  change.newIndex !== undefined &&
+                  change.oldIndex !== change.newIndex &&
+                  ` (was ${change.oldIndex + 1})`}
+              </span>
+            </h3>
+            {change.shapeChanges.map((shape, i) => (
+              <ShapeChangeRow key={`${shape.name}${i}`} shape={shape} />
+            ))}
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
+function ShapeChangeRow({ shape }: { shape: ShapeChange }) {
+  return (
+    <div className="dg-diff-row dg-shape-row">
+      <div
+        className={`dg-cell ${shape.type === 'removed' ? 'dg-cell-removed' : shape.type === 'modified' ? 'dg-cell-mod-old' : 'dg-cell-empty'}`}
+      >
+        {shape.oldText !== undefined && (
+          <>
+            <span className="dg-shape-name">{shape.name}</span>
+            {shape.spans ? renderSpans(shape.spans, 'old') : shape.oldText}
+          </>
+        )}
+      </div>
+      <div
+        className={`dg-cell ${shape.type === 'added' ? 'dg-cell-added' : shape.type === 'modified' ? 'dg-cell-mod-new' : 'dg-cell-empty'}`}
+      >
+        {shape.newText !== undefined && (
+          <>
+            <span className="dg-shape-name">{shape.name}</span>
+            {shape.spans ? renderSpans(shape.spans, 'new') : shape.newText}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -1,0 +1,96 @@
+# Technical notes — known limits, risks, and future work
+
+A living document. Every shipped feature's known rough edges land here so
+they can be polished, fixed, or removed deliberately instead of being
+forgotten. Add to it whenever a new limit is discovered.
+
+## 1. iCloud / shared cloud folders with multiple users (issue #24)
+
+DocGit is local-first: the version database lives on *one* Mac. When the
+tracked file sits in an iCloud Drive folder **shared with another person who
+also runs DocGit**, the file becomes a shared mutable object while each
+user's history and branch state stay private. Consequences, roughly in order
+of severity:
+
+- **Branch switching is unsafe on shared files.** Switching branches rewrites
+  the file on disk; iCloud syncs that rewrite to the other person's Mac as if
+  it were an edit. If both users sit on different branches, the file
+  ping-pongs between two heads and both databases record the other side's
+  content as ordinary saves. *Planned mitigation: detect iCloud paths
+  (`~/Library/Mobile Documents/…`) and warn or disable branch switching for
+  shared files until DocGit has its own sharing layer (the optional sync
+  server in the spec is the real fix).*
+- **The other user's edits arrive as anonymous auto-saves.** B's work syncs
+  down and A's watcher commits it as "Saved" with no author. Histories on the
+  two Macs are *different trees that happen to sample the same file*. Send
+  tags, branches, renames don't transfer.
+- **Conflict copies are invisible.** When iCloud can't merge concurrent edits
+  it creates `Contract 2.docx` next to the original. DocGit tracks the
+  original path only — the conflict copy (possibly containing the other
+  person's latest work) is silently untracked. *Planned mitigation: watch for
+  conflict-copy siblings of tracked files and surface them.*
+- **Eviction ("Optimize Mac Storage")** can replace the file with a
+  placeholder; reads fail until iCloud re-downloads. The watcher and
+  committer already skip unreadable files gracefully, but versioning silently
+  pauses. *Possible mitigation: detect placeholder state and show it in the
+  library.*
+- **Live links double-fire.** If both users link the same workbook→document
+  pair, both Macs rewrite the document on workbook changes. Content converges
+  (same value, dedupe absorbs it) but the concurrent writes raise the odds of
+  iCloud conflict copies.
+
+**Practical guidance for now:** shared-folder use is fine for *one* DocGit
+user per file (the other person's saves become versions — actually useful),
+but avoid branch switching and restores on files other people edit live.
+
+## 2. Storage growth — full-file snapshots (issue #25)
+
+Every version currently stores the complete file bytes plus the normalized
+model JSON, content-addressed (identical content is stored once, and
+auto-save coalescing caps version count). For text-heavy documents this is
+fine — a 300 KB contract × 200 versions ≈ 60 MB worst case.
+
+It degrades with **embedded media**: OOXML files are ZIPs whose size is
+usually dominated by images. A 10 MB deck saved 50 times stores ~500 MB even
+though the images never changed.
+
+Planned fix, in order:
+
+1. **Part-level object store** (the git model, biggest win): unzip the OOXML
+   container and store each *part* (`document.xml`, `media/image1.png`, …) as
+   its own content-addressed object plus a per-version manifest. Unchanged
+   images are stored exactly once across all versions. Fits the existing
+   store cleanly.
+2. **Delta/packfile compression** of consecutive XML parts (they differ by a
+   few hundred bytes between saves) — optional second stage.
+3. **Garbage collection.** Coalescing replaces commits but never deletes
+   their orphaned objects; a `vacuum` pass should reap unreferenced hashes.
+
+## 3. OOXML adapter limits
+
+- **Live links: single-run text only.** A value can only be bound when it
+  sits inside one text run. Word fragments runs unpredictably (spell-check
+  history, formatting boundaries); if "Find" misses, retype the value in Word
+  and save. *Future: run-merging normalization pass before matching.*
+- **Excel row/column shifts read as mass cell edits.** Inserting a row above
+  data shifts every reference below it; the diff reports all of them as
+  modified. *Future: row-shift detection, like the paragraph move detection
+  the text differ already has.*
+- **Excel date cells show raw serial numbers** (e.g. `45292` for a date) —
+  number-format-aware rendering not yet implemented.
+- **Tracked changes are resolved to final state** on parse (insertions kept,
+  deletions dropped). Pending-revision metadata (who proposed what) is not
+  preserved in the model.
+
+## 4. App behaviors to know
+
+- **Word holds files in memory.** Switching branches/restoring while the
+  document is open in Word means Word's next save overwrites the new disk
+  content with its stale buffer. The pre-overwrite safety snapshot rescues
+  the data, but the working file may not be what you expect. *Planned: detect
+  the document is open and warn before switching.*
+- **Unlink keeps an inert content control** in the .docx (harmless, invisible
+  in Word). *Future: unwrap the control on unlink.*
+- **The version database** lives in Electron's userData directory under the
+  default app identity until the app is packaged (`electron-builder`), after
+  which it should migrate to a proper `DocGit` directory.

@@ -45,7 +45,24 @@ export interface SpreadsheetModel {
   sheets: SheetModel[];
 }
 
-export type DocModel = TextDocModel | SpreadsheetModel;
+/** A shape on a slide reduced to its text (paragraphs joined by \n). */
+export interface SlideShape {
+  name: string;
+  text: string;
+}
+
+export interface SlideModel {
+  /** PowerPoint's persistent slide id — stable across edits and reorders. */
+  id: string;
+  shapes: SlideShape[];
+}
+
+export interface PresentationModel {
+  kind: 'slides';
+  slides: SlideModel[];
+}
+
+export type DocModel = TextDocModel | SpreadsheetModel | PresentationModel;
 
 /** Canonical text content of a block — the unit the content diff compares. */
 export function blockText(block: Block): string {
