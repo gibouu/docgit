@@ -442,6 +442,109 @@ body {
 
 .branch-panel-hint { font-size: 12px; color: var(--dg-ink-soft); }
 
+/* ── Linked values ───────────────────────────────────────────────────── */
+
+.links-section {
+  margin-top: 26px;
+  padding-top: 14px;
+  border-top: 1px solid var(--dg-hairline);
+}
+
+.links-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.links-head h2 {
+  font-family: var(--dg-serif);
+  font-size: 19px;
+  font-weight: 560;
+  margin: 0 0 8px;
+}
+
+.links-tools { display: flex; gap: 6px; }
+
+.links-empty { font-size: 12.5px; color: var(--dg-ink-soft); }
+
+.links-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.links-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dg-hairline) 60%, transparent);
+  font-size: 13px;
+}
+
+.links-ref { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.links-value { font-weight: 600; color: var(--dg-accent); }
+
+.links-source { color: var(--dg-ink-soft); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.links-stale {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f6e4c4;
+  color: #8a5f12;
+}
+
+/* add-link wizard */
+
+.linkwizard { display: flex; flex-direction: column; gap: 4px; }
+
+.linkwizard-row { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+
+.linkwizard-row > span:first-child {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dg-ink-soft);
+}
+
+.linkwizard-pair { display: flex; gap: 12px; }
+
+.linkwizard-check { display: flex; align-items: center; gap: 6px; font-size: 12.5px; margin-top: 18px; }
+
+.linkwizard-cell, .linkwizard-preview { font-size: 12.5px; margin: 2px 0; }
+
+.linkwizard-cell code { font-size: 11px; color: var(--dg-ink-soft); }
+
+.linkwizard-preview strong { color: var(--dg-accent); }
+
+.linkwizard-find { display: flex; gap: 8px; align-items: center; }
+
+.linkwizard-occurrences {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.linkwizard-occurrences label {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.linkwizard-occurrences label:hover { background: color-mix(in srgb, var(--dg-hairline) 30%, transparent); }
+
+.linkwizard-error { color: #8a3b2e; font-size: 12.5px; }
+
 /* ── Modal ────────────────────────────────────────────────────────────── */
 
 .modal-backdrop {

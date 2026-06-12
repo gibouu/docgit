@@ -1,19 +1,45 @@
 import {
   diffModels,
+  findLinkableOccurrences,
+  formatValue,
+  insertLinkedValue,
   parseDocument,
+  refreshLinkedValue,
   SnapshotStore,
   type BranchRow,
   type CommitResult,
+  type CommitRow,
   type DocDiff,
   type DocumentGraph,
   type DocumentRow,
   type DocumentSummary,
+  type LinkableOccurrence,
+  type LinkRow,
   type SendRow,
+  type ValueFormat,
 } from '@docgit/core';
 import chokidar, { type FSWatcher } from 'chokidar';
+import { randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+
+export interface LinkInfo {
+  link: LinkRow;
+  sourceName: string;
+  /** The source workbook has versions newer than what this link last pulled. */
+  stale: boolean;
+  format: ValueFormat;
+}
+
+export interface CreateLinkPayload {
+  sourceDocumentId: string;
+  sheet: string;
+  cellRef: string;
+  format: ValueFormat;
+  search: string;
+  occurrence: number;
+}
 
 /**
  * Main-process façade over the core engine. Owns the snapshot store and a
@@ -75,7 +101,10 @@ export class DocumentService {
   saveVersion(documentId: string, message?: string): CommitResult {
     const doc = this.store.getDocument(documentId);
     const result = this.commitPath(doc.path, message);
-    if (result?.created) this.onChanged(documentId);
+    if (result?.created) {
+      this.onChanged(documentId);
+      this.propagateFrom(documentId);
+    }
     return result!;
   }
 
@@ -165,6 +194,142 @@ export class DocumentService {
     return branch;
   }
 
+  // ── Live links (Excel → Word inline values) ───────────────────────────
+
+  listWorkbooks(): DocumentSummary[] {
+    return this.store.listDocuments().filter((d) => d.path.toLowerCase().endsWith('.xlsx'));
+  }
+
+  workbookSheets(sourceDocumentId: string): string[] {
+    const model = this.headModel(sourceDocumentId);
+    return model?.kind === 'spreadsheet' ? model.sheets.map((s) => s.name) : [];
+  }
+
+  workbookCell(sourceDocumentId: string, sheet: string, cellRef: string): { value: string; formula?: string } | null {
+    const model = this.headModel(sourceDocumentId);
+    if (model?.kind !== 'spreadsheet') return null;
+    const cell = model.sheets.find((s) => s.name === sheet)?.cells[cellRef.toUpperCase()];
+    return cell ? { value: cell.v, ...(cell.f ? { formula: cell.f } : {}) } : null;
+  }
+
+  findOccurrences(documentId: string, search: string): LinkableOccurrence[] {
+    const doc = this.store.getDocument(documentId);
+    return findLinkableOccurrences(readFileSync(doc.path), search);
+  }
+
+  links(documentId: string): LinkInfo[] {
+    return this.store.linksForDocument(documentId).map((link) => {
+      const source = this.store.getDocument(link.sourceDocumentId);
+      const sourceHead = this.headCommit(link.sourceDocumentId);
+      return {
+        link,
+        sourceName: source.name,
+        stale: !!sourceHead && link.lastSourceCommitId !== sourceHead.id,
+        format: JSON.parse(link.format) as ValueFormat,
+      };
+    });
+  }
+
+  /**
+   * Bind a value in the document to a workbook cell: the matched text is
+   * replaced by the cell's current (formatted) value inside a tagged content
+   * control, and the whole operation is a version.
+   */
+  createLink(documentId: string, payload: CreateLinkPayload): LinkInfo {
+    const doc = this.store.getDocument(documentId);
+    const source = this.store.getDocument(payload.sourceDocumentId);
+    const sourceHead = this.headCommit(payload.sourceDocumentId);
+    if (!sourceHead) throw new Error(`${source.name} has no versions yet`);
+    const cell = this.workbookCell(payload.sourceDocumentId, payload.sheet, payload.cellRef);
+    if (!cell) throw new Error(`${payload.sheet}!${payload.cellRef} is empty or missing in ${source.name}`);
+
+    const display = formatValue(cell.value, payload.format);
+    this.snapshotDiskBeforeOverwrite(documentId);
+
+    const id = randomUUID();
+    const bytes = insertLinkedValue(readFileSync(doc.path), payload.search, payload.occurrence, id, display);
+    if (!bytes) throw new Error('That text was not found anymore — the document changed. Try again.');
+    writeFileSync(doc.path, bytes);
+    this.commitPath(doc.path, `Linked ${payload.sheet}!${payload.cellRef} ← ${source.name}`);
+
+    this.store.createLink({
+      id,
+      docDocumentId: documentId,
+      sourceDocumentId: payload.sourceDocumentId,
+      sheet: payload.sheet,
+      cellRef: payload.cellRef.toUpperCase(),
+      format: JSON.stringify(payload.format),
+      lastValue: display,
+      lastSourceCommitId: sourceHead.id,
+    });
+    this.onChanged(documentId);
+    return this.links(documentId).find((l) => l.link.id === id)!;
+  }
+
+  /**
+   * Pull current values from all linked workbooks into the document.
+   * Value changes are applied in one pass and recorded as a single version
+   * whose message lists every change. Returns the number of values updated.
+   */
+  refreshLinks(documentId: string): number {
+    const doc = this.store.getDocument(documentId);
+    const links = this.store.linksForDocument(documentId);
+    if (links.length === 0) return 0;
+
+    let bytes: Uint8Array;
+    try {
+      bytes = readFileSync(doc.path);
+    } catch {
+      return 0;
+    }
+
+    const changes: string[] = [];
+    for (const link of links) {
+      const sourceHead = this.headCommit(link.sourceDocumentId);
+      if (!sourceHead) continue;
+      const cell = this.workbookCell(link.sourceDocumentId, link.sheet, link.cellRef);
+      if (!cell) continue; // cell deleted in the workbook — leave the document value alone
+      const display = formatValue(cell.value, JSON.parse(link.format) as ValueFormat);
+      if (display !== link.lastValue) {
+        const refreshed = refreshLinkedValue(bytes, link.id, display);
+        if (!refreshed) continue; // control deleted in Word — registry row is now inert
+        bytes = refreshed.bytes;
+        changes.push(`${link.sheet}!${link.cellRef}: ${refreshed.oldValue} → ${display}`);
+      }
+      this.store.updateLinkValue(link.id, display, sourceHead.id);
+    }
+
+    if (changes.length > 0) {
+      const sourceNames = [...new Set(links.map((l) => this.store.getDocument(l.sourceDocumentId).name))];
+      writeFileSync(doc.path, bytes);
+      this.commitPath(doc.path, `Updated from ${sourceNames.join(', ')} — ${changes.join('; ')}`);
+    }
+    this.onChanged(documentId);
+    return changes.length;
+  }
+
+  deleteLink(documentId: string, linkId: string): void {
+    this.store.deleteLink(linkId);
+    this.onChanged(documentId);
+  }
+
+  /** After a workbook commits, push its new values into every linked document. */
+  private propagateFrom(sourceDocumentId: string): void {
+    const targets = new Set(this.store.linksFromSource(sourceDocumentId).map((l) => l.docDocumentId));
+    for (const targetId of targets) this.refreshLinks(targetId);
+  }
+
+  private headCommit(documentId: string): CommitRow | null {
+    const doc = this.store.getDocument(documentId);
+    const branch = this.store.getBranch(doc.currentBranchId);
+    return branch.headCommitId ? this.store.getCommit(branch.headCommitId) : null;
+  }
+
+  private headModel(documentId: string) {
+    const head = this.headCommit(documentId);
+    return head ? this.store.getModel(head) : null;
+  }
+
   // ── Sends ──────────────────────────────────────────────────────────────
 
   markSent(documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }): SendRow {
@@ -246,6 +411,9 @@ export class DocumentService {
 
   private autoCommit(doc: DocumentRow): void {
     const result = this.commitPath(doc.path, 'Saved', AUTOSAVE_COALESCE_MS);
-    if (result?.created) this.onChanged(doc.id);
+    if (result?.created) {
+      this.onChanged(doc.id);
+      this.propagateFrom(doc.id);
+    }
   }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BranchRow, CommitRow, DocDiff, DocumentGraph, DocumentSummary } from '@docgit/core';
 import { BranchGraph, DiffView } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
+import { LinksSection } from './LinksSection.js';
 
 export interface DocumentViewProps {
   document: DocumentSummary;
@@ -180,11 +181,14 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               onRename={(commit) => setDialog({ kind: 'renameVersion', commit })}
             />
           ) : (
-            <BranchPanel
-              graph={graph}
-              onCompareToMain={(b) => void compareBranchToMain(b)}
-              onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
-            />
+            <>
+              <BranchPanel
+                graph={graph}
+                onCompareToMain={(b) => void compareBranchToMain(b)}
+                onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+              />
+              {doc.name.toLowerCase().endsWith('.docx') && <LinksSection documentId={doc.id} />}
+            </>
           )}
         </aside>
       </div>

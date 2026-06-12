@@ -91,6 +91,21 @@ function registerIpc(svc: DocumentService): void {
     (_e, documentId: string, commitId: string, info: { recipient: string; channel?: string; note?: string }) =>
       svc.markSent(documentId, commitId, info),
   );
+
+  ipcMain.handle('links:list', (_e, documentId: string) => svc.links(documentId));
+  ipcMain.handle('links:workbooks', () => svc.listWorkbooks());
+  ipcMain.handle('links:sheets', (_e, sourceDocumentId: string) => svc.workbookSheets(sourceDocumentId));
+  ipcMain.handle('links:cell', (_e, sourceDocumentId: string, sheet: string, cellRef: string) =>
+    svc.workbookCell(sourceDocumentId, sheet, cellRef),
+  );
+  ipcMain.handle('links:occurrences', (_e, documentId: string, search: string) =>
+    svc.findOccurrences(documentId, search),
+  );
+  ipcMain.handle('links:create', (_e, documentId: string, payload: Parameters<DocumentService['createLink']>[1]) =>
+    svc.createLink(documentId, payload),
+  );
+  ipcMain.handle('links:refresh', (_e, documentId: string) => svc.refreshLinks(documentId));
+  ipcMain.handle('links:delete', (_e, documentId: string, linkId: string) => svc.deleteLink(documentId, linkId));
 }
 
 /**
@@ -216,6 +231,33 @@ async function runSmokeTest(): Promise<void> {
     if (xdiff.kind !== 'spreadsheet' || xdiff.summary.cellsModified !== 1 || xdiff.summary.cellsAdded !== 1) {
       throw new Error(`unexpected xlsx diff: ${JSON.stringify(xdiff.kind === 'spreadsheet' ? xdiff.summary : xdiff.kind)}`);
     }
+
+    // Live links (#4 part 2): a workbook edit must propagate into the linked
+    // Word document as a new version.
+    const contractPath = join(dir, 'offer.docx');
+    writeFileSync(contractPath, makeDocx(['The total price is 1200 euros, payable on delivery.']));
+    const wdoc = svc.addDocument(contractPath);
+    svc.createLink(wdoc.id, {
+      sourceDocumentId: xdoc.id,
+      sheet: 'Forecast',
+      cellRef: 'B1',
+      format: { style: 'raw' },
+      search: '1200',
+      occurrence: 0,
+    });
+    const linkedText = parseDocx(readFileSync(contractPath)).blocks.map((b) => ('text' in b ? b.text : '')).join(' ');
+    if (!linkedText.includes('1200')) throw new Error('linked value not inserted');
+
+    writeFileSync(xlsxPath, makeXlsxDoc({ A1: 'Revenue', B1: 1500, A2: 'Costs' }));
+    svc.saveVersion(xdoc.id, 'price increase');
+
+    const propagated = parseDocx(readFileSync(contractPath)).blocks.map((b) => ('text' in b ? b.text : '')).join(' ');
+    if (!propagated.includes('1500')) throw new Error(`workbook change did not propagate: ${propagated}`);
+    const wgraph = svc.getGraph(wdoc.id);
+    const updateCommit = wgraph.commits.find((c) => c.message?.includes('1200 → 1500'));
+    if (!updateCommit) throw new Error('link refresh was not recorded as a version');
+    const linkInfos = svc.links(wdoc.id);
+    if (linkInfos.length !== 1 || linkInfos[0]!.stale) throw new Error('link registry inconsistent after refresh');
 
     svc.dispose();
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
