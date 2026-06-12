@@ -92,22 +92,23 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
         </button>
         <div className="docview-title">
           <h1>{doc.name}</h1>
-          <label className="branch-switcher" style={{ ['--dg-pill' as string]: currentBranch?.color }}>
+          <button
+            type="button"
+            className="branch-switcher"
+            style={{ ['--dg-pill' as string]: currentBranch?.color }}
+            title="Show all branches"
+            onClick={() => {
+              setSelectedIds([]);
+              setComparison(null);
+            }}
+          >
             <span className="branch-switcher-dot" style={{ background: currentBranch?.color }} />
-            <select
-              value={graph.document.currentBranchId}
-              onChange={(e) => void window.docgit.switchBranch(doc.id, e.target.value)}
-              title="Switch branch — the document file follows"
-            >
-              {graph.branches
-                .filter((b) => !b.archived || b.id === graph.document.currentBranchId)
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-            </select>
-          </label>
+            <span className="branch-switcher-name">{currentBranch?.name}</span>
+            <span className="branch-switcher-count">
+              · {graph.branches.filter((b) => !b.archived).length} branch
+              {graph.branches.filter((b) => !b.archived).length === 1 ? '' : 'es'} ▾
+            </span>
+          </button>
         </div>
         <div className="docview-actions">
           {hasArchived && (
@@ -137,6 +138,9 @@ export function DocumentView({ document: doc, onBack }: DocumentViewProps) {
               currentBranchId={graph.document.currentBranchId}
               selectedIds={selectedIds}
               onSelect={onSelect}
+              onSelectBranch={(branchId) => {
+                if (branchId !== graph.document.currentBranchId) void window.docgit.switchBranch(doc.id, branchId);
+              }}
               showArchived={showArchived}
             />
           </div>
@@ -470,12 +474,15 @@ function BranchPanel({
 function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
   const [name, setName] = useState('');
   return (
-    <Modal title="New branch from this version" onClose={props.onClose}>
-      <p className="modal-hint">e.g. “CV — Marketing roles”, “Contract — Client B”, “French version”</p>
+    <Modal title="Name this branch" onClose={props.onClose}>
+      <p className="modal-hint">
+        A branch is a named variant of this document with its own life — give it the purpose it exists for:
+        “CV — Marketing roles”, “Contract — Client B”, “French version”.
+      </p>
       <input
         autoFocus
         className="input"
-        placeholder="Branch name"
+        placeholder="What is this variant for?"
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
