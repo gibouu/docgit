@@ -4,6 +4,10 @@ Git-style version control for office documents — without the git.
 
 DocGit gives professionals who iterate on high-stakes documents (contracts, business plans, CVs, per-client and multilingual variants) a visual version tree, branching, send-tracking, and trustworthy side-by-side diffs for Word, Excel and PowerPoint documents — plus La Suite Docs and Grist.
 
+## Download
+
+Grab the latest **[DocGit.app DMG from Releases](https://github.com/gibouu/docgit/releases/latest)** (Apple silicon). The app is **signed and notarized by Apple** — open the DMG, drag DocGit to Applications, and double-click. No security prompts, no right-click ritual.
+
 ## Privacy: local only, no exceptions
 
 DocGit transfers nothing and keeps nothing outside your Mac:
@@ -42,11 +46,10 @@ pnpm --filter @docgit/desktop dist
 
 ## Releases
 
-Push a tag (`git tag v0.8.0 && git push origin v0.8.0`) and CI builds the DMG
-on an Apple-silicon runner and attaches it to a GitHub Release. Builds are
-**unsigned** for now: after downloading, right-click → Open the first time
-(or `xattr -dr com.apple.quarantine /Applications/DocGit.app`). Proper
-signing + notarization requires an Apple Developer ID — see
-[`docs/TECH-NOTES.md`](docs/TECH-NOTES.md).
+Push a tag (`git tag v0.9.0 && git push origin v0.9.0`) and CI builds the DMG
+on an Apple-silicon runner, **signs it with the Developer ID certificate and
+notarizes it with Apple**, then attaches it to a GitHub Release. The signing
+secrets are configured on the repo — see [`docs/TECH-NOTES.md`](docs/TECH-NOTES.md)
+for the credential checklist.
 
 See [`docs/SPEC.md`](docs/SPEC.md) for the full product spec and milestone plan.

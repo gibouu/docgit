@@ -109,10 +109,14 @@ Planned fix, in order:
 - **The version database** lives at `~/Library/Application Support/DocGit/`
   (migrated automatically from the pre-packaging Electron directory; the old
   copy is left in place as a backup and can be deleted manually).
-- **Signing + notarization are wired but need credentials.** The build signs
-  automatically when a "Developer ID Application" certificate is available
-  and notarizes when Apple credentials are in the environment. To enable on
-  CI releases, add these repository secrets (Settings → Secrets → Actions):
+- **Signing + notarization are LIVE as of v0.8.0.** Released DMGs are signed
+  with the Developer ID Application certificate (team `U6Z87CS4W3`) and
+  notarized by Apple — verified with `spctl -a` ("accepted, source=Notarized
+  Developer ID") and `stapler validate`. Downloads open with a normal
+  double-click, no Gatekeeper prompt. The build signs automatically when a
+  "Developer ID Application" certificate is available and notarizes when
+  Apple credentials are in the environment. The CI release secrets
+  (Settings → Secrets → Actions) are:
   - `CSC_LINK` — the Developer ID Application certificate exported from
     Keychain Access as a `.p12`, base64-encoded (`base64 -i cert.p12`)
   - `CSC_KEY_PASSWORD` — the `.p12` export password
