@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { BranchRow, CommitRow, DocDiff, DocumentGraph, UpstreamStatus } from '@docgit/core';
 import type { CloudStatus, DocumentInfo } from '../../../preload/api';
-import { BranchGraph, DiffView } from '@docgit/ui';
+import { DiffView, HorizontalBranchGraph } from '@docgit/ui';
 import { Modal } from '../components/Modal.js';
 import { LinksSection } from './LinksSection.js';
 
@@ -21,17 +21,17 @@ type DialogState =
   | { kind: 'cloudSwitch'; branchId: string; branchName: string }
   | null;
 
+type Tab = 'details' | 'changes' | 'sent' | 'links';
+
 export function DocumentView({ document: doc, onBack, initialSelectedId }: DocumentViewProps) {
   const [graph, setGraph] = useState<DocumentGraph | null>(null);
   const [statuses, setStatuses] = useState<{ branchId: string; status: UpstreamStatus | null }[]>([]);
+  const [cloud, setCloud] = useState<CloudStatus>({ provider: null, conflictCopies: [] });
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedId ? [initialSelectedId] : []);
   const [comparison, setComparison] = useState<{ diff: DocDiff; fromLabel: string; toLabel: string } | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
   const [showArchived, setShowArchived] = useState(false);
-
-  const treeScrollRef = useRef<HTMLDivElement>(null);
-
-  const [cloud, setCloud] = useState<CloudStatus>({ provider: null, conflictCopies: [] });
+  const [tab, setTab] = useState<Tab>('details');
 
   const refresh = useCallback(async () => {
     setGraph(await window.docgit.getGraph(doc.id));
@@ -46,30 +46,36 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
     });
   }, [doc.id, refresh]);
 
-  // Newest version lives at the bottom — keep it in view as the tree grows.
-  useEffect(() => {
-    const el = treeScrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [graph?.commits.length]);
-
   const commitsById = useMemo(() => new Map((graph?.commits ?? []).map((c) => [c.id, c])), [graph]);
   const selected = selectedIds.map((id) => commitsById.get(id)).filter(Boolean) as CommitRow[];
+  const lastSelected = selected.at(-1) ?? null;
 
-  const onSelect = useCallback((commit: CommitRow, additive: boolean) => {
-    setComparison(null);
-    setSelectedIds((prev) => {
-      if (additive && prev.length >= 1 && !prev.includes(commit.id)) return [...prev.slice(-1), commit.id];
-      if (prev.length === 1 && prev[0] === commit.id) return [];
-      return [commit.id];
-    });
-  }, []);
+  const onSelectNode = useCallback(
+    (commit: CommitRow, additive: boolean) => {
+      setComparison(null);
+      setSelectedIds((prev) => {
+        if (additive && prev.length >= 1 && !prev.includes(commit.id)) {
+          setTab('changes');
+          return [...prev.slice(-1), commit.id];
+        }
+        setTab('details');
+        if (prev.length === 1 && prev[0] === commit.id) return [];
+        return [commit.id];
+      });
+    },
+    [],
+  );
 
-  const compare = async () => {
-    if (selected.length !== 2) return;
-    // Older version on the left.
-    const [a, b] = selected[0]!.createdAt <= selected[1]!.createdAt ? [selected[0]!, selected[1]!] : [selected[1]!, selected[0]!];
-    setComparison(await window.docgit.getDiff(a.id, b.id));
-  };
+  const selectBranch = useCallback(
+    (branchId: string) => {
+      const branch = graph?.branches.find((b) => b.id === branchId);
+      if (!branch?.headCommitId) return;
+      setComparison(null);
+      setSelectedIds([branch.headCommitId]);
+      setTab('details');
+    },
+    [graph],
+  );
 
   const askRestore = async (commit: CommitRow) => {
     setDialog({ kind: 'restore', commit, behind: await window.docgit.getDivergence(commit.id) });
@@ -77,45 +83,54 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
 
   if (!graph) return <main className="docview" />;
 
+  const trunk = graph.branches[0];
   const currentBranch = graph.branches.find((b) => b.id === graph.document.currentBranchId);
   const hasArchived = graph.branches.some((b) => b.archived);
-  const trunk = graph.branches[0]; // position 0 — Main
+  const statusOf = (branchId: string) => statuses.find((s) => s.branchId === branchId)?.status ?? null;
+  const visibleBranches = graph.branches.filter((b) => showArchived || !b.archived);
 
-  const compareBranchToMain = async (branch: BranchRow) => {
-    if (!trunk?.headCommitId || !branch.headCommitId) return;
-    setSelectedIds([]);
-    const result = await window.docgit.getDiff(trunk.headCommitId, branch.headCommitId);
-    setComparison({ ...result, fromLabel: `${trunk.name} — latest`, toLabel: `${branch.name} — latest` });
-  };
-
-  // Always offered while working on a variant — identical heads simply show
-  // an all-unchanged comparison, which is itself an answer.
-  const canCompareToMain =
-    currentBranch && trunk && currentBranch.id !== trunk.id && !!currentBranch.headCommitId && !!trunk.headCommitId;
-
-  const showUpstreamChanges = async (status: UpstreamStatus) => {
-    setSelectedIds([]);
-    const result = await window.docgit.getDiff(status.baseCommitId, status.upstreamHeadCommitId);
-    setComparison({
-      ...result,
-      fromLabel: 'Where this branch last caught up',
-      toLabel: `${status.upstreamBranchName} — latest`,
-    });
-  };
-
-  const currentStatus = statuses.find((s) => s.branchId === graph.document.currentBranchId)?.status ?? null;
-
-  // Switching rewrites the file on disk. In a cloud-synced folder that
-  // rewrite syncs to everyone the folder is shared with — confirm first.
   const requestSwitch = (branchId: string) => {
     if (branchId === graph.document.currentBranchId) return;
     const branch = graph.branches.find((b) => b.id === branchId);
-    if (cloud.provider) {
-      setDialog({ kind: 'cloudSwitch', branchId, branchName: branch?.name ?? 'branch' });
-    } else {
-      void window.docgit.switchBranch(doc.id, branchId);
-    }
+    if (cloud.provider) setDialog({ kind: 'cloudSwitch', branchId, branchName: branch?.name ?? 'branch' });
+    else void window.docgit.switchBranch(doc.id, branchId);
   };
+
+  const runCompare = async (fromId: string, toId: string, labels?: { from: string; to: string }) => {
+    const result = await window.docgit.getDiff(fromId, toId);
+    setComparison(labels ? { ...result, fromLabel: labels.from, toLabel: labels.to } : result);
+    setTab('changes');
+  };
+
+  const compareSelectedPair = () => {
+    if (selected.length !== 2) return;
+    const [a, b] = selected[0]!.createdAt <= selected[1]!.createdAt ? [selected[0]!, selected[1]!] : [selected[1]!, selected[0]!];
+    void runCompare(a.id, b.id);
+  };
+
+  const compareWithParent = (commit: CommitRow) => {
+    if (!commit.parentId) return;
+    void runCompare(commit.parentId, commit.id);
+  };
+
+  const compareBranchToMain = (branch: BranchRow) => {
+    if (!trunk?.headCommitId || !branch.headCommitId) return;
+    void runCompare(trunk.headCommitId, branch.headCommitId, { from: `${trunk.name} — latest`, to: `${branch.name} — latest` });
+  };
+
+  const showUpstreamChanges = (status: UpstreamStatus) => {
+    void runCompare(status.baseCommitId, status.upstreamHeadCommitId, {
+      from: 'Where this branch last caught up',
+      to: `${status.upstreamBranchName} — latest`,
+    });
+  };
+
+  const tabs: { id: Tab; icon: string; label: string }[] = [
+    { id: 'details', icon: '◉', label: 'Details' },
+    { id: 'changes', icon: '⇄', label: 'Changes' },
+    { id: 'sent', icon: '✉', label: 'Sent' },
+  ];
+  if (!doc.remoteKind && doc.name.toLowerCase().endsWith('.docx')) tabs.push({ id: 'links', icon: '⛓', label: 'Links' });
 
   return (
     <main className="docview">
@@ -124,24 +139,11 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
           ‹ All documents
         </button>
         <div className="docview-title">
-          <h1>{doc.name}</h1>
-          <button
-            type="button"
-            className="branch-switcher"
-            style={{ ['--dg-pill' as string]: currentBranch?.color }}
-            title="Show all branches"
-            onClick={() => {
-              setSelectedIds([]);
-              setComparison(null);
-            }}
-          >
+          <h1 title={doc.name}>{doc.name}</h1>
+          <span className="docview-on" style={{ ['--dg-pill' as string]: currentBranch?.color }}>
             <span className="branch-switcher-dot" style={{ background: currentBranch?.color }} />
-            <span className="branch-switcher-name">{currentBranch?.name}</span>
-            <span className="branch-switcher-count">
-              · {graph.branches.filter((b) => !b.archived).length} branch
-              {graph.branches.filter((b) => !b.archived).length === 1 ? '' : 'es'} ▾
-            </span>
-          </button>
+            on {currentBranch?.name}
+          </span>
         </div>
         <div className="docview-actions">
           {hasArchived && (
@@ -157,21 +159,6 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             >
               ☁ {cloud.provider}
             </span>
-          )}
-          {currentStatus && currentStatus.behind > 0 && (
-            <button
-              type="button"
-              className="btn behind-badge"
-              title={`${currentStatus.upstreamBranchName} has changed since this branch last caught up — click to see exactly what`}
-              onClick={() => void showUpstreamChanges(currentStatus)}
-            >
-              behind {currentStatus.upstreamBranchName} by {currentStatus.behind}
-            </button>
-          )}
-          {canCompareToMain && (
-            <button type="button" className="btn" onClick={() => void compareBranchToMain(currentBranch)}>
-              Compare with {trunk.name}
-            </button>
           )}
           {doc.remoteKind && (
             <button type="button" className="btn" onClick={() => void window.docgit.syncRemote(doc.id)}>
@@ -190,12 +177,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
           {cloud.conflictCopies.map((path) => (
             <span key={path} className="cloud-conflict">
               {path.split('/').pop()}
-              <button
-                type="button"
-                className="btn btn-mini"
-                title="Track the copy in DocGit so its content is preserved and comparable"
-                onClick={() => void window.docgit.addDocumentByPath(path)}
-              >
+              <button type="button" className="btn btn-mini" onClick={() => void window.docgit.addDocumentByPath(path)}>
                 Track it
               </button>
             </span>
@@ -204,84 +186,115 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
         </div>
       )}
 
-      <div className="docview-body">
-        <section className="docview-tree">
-          <div className="docview-tree-scroll" ref={treeScrollRef}>
-            <BranchGraph
-              branches={graph.branches}
-              commits={graph.commits}
-              sends={graph.sends}
-              currentBranchId={graph.document.currentBranchId}
-              selectedIds={selectedIds}
-              onSelect={onSelect}
-              onSelectBranch={requestSwitch}
-              showArchived={showArchived}
-            />
-          </div>
-          <footer className="docview-tree-hint">
-            First version at the top, newest at the bottom. Click a version to inspect it — ⌘-click a second one to
-            compare.
-          </footer>
-        </section>
+      {/* Top: the tree viewer */}
+      <section className="tree-viewer">
+        <HorizontalBranchGraph
+          branches={graph.branches}
+          commits={graph.commits}
+          sends={graph.sends}
+          currentBranchId={graph.document.currentBranchId}
+          selectedIds={selectedIds}
+          onSelect={onSelectNode}
+          onSelectBranch={selectBranch}
+          showArchived={showArchived}
+        />
+        <span className="tree-viewer-hint">Drag to pan · click a version · ⌘-click a second to compare · click a branch name to jump</span>
+      </section>
 
-        <aside className="docview-panel">
-          {comparison ? (
-            <>
-              <div className="panel-bar">
-                <h2>What changed</h2>
-                <button type="button" className="btn btn-ghost" onClick={() => setComparison(null)}>
-                  ✕ Close
-                </button>
-              </div>
-              <DiffView diff={comparison.diff} oldLabel={comparison.fromLabel} newLabel={comparison.toLabel} />
-            </>
-          ) : selected.length === 2 ? (
-            <div className="panel-cta">
-              <p>
-                Two versions selected —{' '}
-                <strong>
-                  {selected[0]!.message ?? 'version'} ↔ {selected[1]!.message ?? 'version'}
-                </strong>
-              </p>
-              <button type="button" className="btn btn-primary" onClick={() => void compare()}>
-                Compare these versions
-              </button>
-            </div>
-          ) : selected.length === 1 ? (
-            <VersionDetails
-              commit={selected[0]!}
-              graph={graph}
-              readOnly={!!doc.remoteKind}
-              onOpenCopy={() => void window.docgit.openVersionCopy(selected[0]!.id)}
-              onBranch={() => setDialog({ kind: 'branch', from: selected[0]! })}
-              onRestore={() => void askRestore(selected[0]!)}
-              onSend={() => setDialog({ kind: 'send', commit: selected[0]! })}
-              onSwitchTo={requestSwitch}
-              onRename={(commit) => setDialog({ kind: 'renameVersion', commit })}
-            />
-          ) : (
-            <>
-              <BranchPanel
-                graph={graph}
-                statuses={statuses}
-                onCompareToMain={(b) => void compareBranchToMain(b)}
-                onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
-                onShowUpstream={(s) => void showUpstreamChanges(s)}
-                onMarkSynced={(branchId) => void window.docgit.markBranchSynced(doc.id, branchId)}
-                onSwitch={requestSwitch}
-              />
-              {doc.name.toLowerCase().endsWith('.docx') && <LinksSection documentId={doc.id} />}
-            </>
-          )}
+      {/* Bottom: the dock */}
+      <div className="dock">
+        <aside className="dock-left">
+          <div className="dock-left-head">Branches</div>
+          <ul className="dock-branches">
+            {visibleBranches.map((branch) => {
+              const isCurrent = branch.id === graph.document.currentBranchId;
+              const isSelected = lastSelected?.branchId === branch.id;
+              const status = statusOf(branch.id);
+              return (
+                <li key={branch.id}>
+                  <button
+                    type="button"
+                    className={`dock-branch${isSelected ? ' is-selected' : ''}`}
+                    onClick={() => selectBranch(branch.id)}
+                  >
+                    <span className="dock-branch-swatch" style={{ background: branch.color }} />
+                    <span className="dock-branch-name" style={{ color: branch.color }}>
+                      {branch.name}
+                    </span>
+                    {isCurrent && <span className="dock-branch-current">working</span>}
+                    {status && status.behind > 0 && (
+                      <span className="behind-badge behind-badge-mini" title={`${status.behind} upstream change(s) not in this branch`}>
+                        −{status.behind}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </aside>
+
+        <section className="dock-right">
+          <div className="dock-tabs">
+            {tabs.map((t) => (
+              <button key={t.id} type="button" className={`dock-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
+                <span className="dock-tab-icon">{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="dock-content">
+            {tab === 'details' && (
+              <DetailsTab
+                doc={doc}
+                graph={graph}
+                commit={lastSelected}
+                status={lastSelected ? statusOf(lastSelected.branchId) : null}
+                readOnly={!!doc.remoteKind}
+                onOpenCopy={(c) => void window.docgit.openVersionCopy(c.id)}
+                onBranch={(c) => setDialog({ kind: 'branch', from: c })}
+                onRestore={(c) => void askRestore(c)}
+                onSend={(c) => setDialog({ kind: 'send', commit: c })}
+                onSwitchTo={requestSwitch}
+                onRenameVersion={(c) => setDialog({ kind: 'renameVersion', commit: c })}
+                onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+                onRecolor={(b, color) => void window.docgit.setBranchColor(doc.id, b.id, color)}
+                onArchive={(b, archived) => void window.docgit.setBranchArchived(doc.id, b.id, archived)}
+                onCompareToMain={compareBranchToMain}
+                onCompareWithParent={compareWithParent}
+                onShowUpstream={showUpstreamChanges}
+                onMarkSynced={(b) => void window.docgit.markBranchSynced(doc.id, b.id)}
+              />
+            )}
+
+            {tab === 'changes' && (
+              <ChangesTab
+                comparison={comparison}
+                selected={selected}
+                trunk={trunk}
+                lastSelected={lastSelected}
+                onClose={() => setComparison(null)}
+                onComparePair={compareSelectedPair}
+                onCompareParent={compareWithParent}
+                onCompareBranchToMain={compareBranchToMain}
+                graph={graph}
+              />
+            )}
+
+            {tab === 'sent' && <SentTab graph={graph} onOpenVersion={(id) => onSelectNode(commitsById.get(id)!, false)} />}
+
+            {tab === 'links' && <LinksSection documentId={doc.id} />}
+          </div>
+        </section>
       </div>
 
       {dialog?.kind === 'cloudSwitch' && (
         <Modal title={`Switch branches in a ${cloud.provider} folder?`} onClose={() => setDialog(null)}>
           <p>
             Switching to <strong>“{dialog.branchName}”</strong> rewrites the file on disk with that branch's content.
-            Because this file lives in {cloud.provider}, the rewrite syncs to <strong>everyone the folder is shared
-            with</strong> — if someone else is editing it right now, your branches will collide with their work.
+            Because this file lives in {cloud.provider}, the rewrite syncs to <strong>everyone the folder is shared with</strong> —
+            if someone else is editing it right now, your branches will collide with their work.
           </p>
           <p className="modal-hint">Safe if you're the only one using this file. Your own work is never lost either way.</p>
           <div className="modal-actions">
@@ -349,8 +362,8 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
         <Modal title="Restore this version?" onClose={() => setDialog(null)}>
           {dialog.behind !== null && dialog.behind > 0 ? (
             <p>
-              The document has moved on by <strong>{dialog.behind} version{dialog.behind > 1 ? 's' : ''}</strong> since
-              this one. Restoring won't lose anything — today's content stays in the history.
+              The document has moved on by <strong>{dialog.behind} version{dialog.behind > 1 ? 's' : ''}</strong> since this
+              one. Restoring won't lose anything — today's content stays in the history.
             </p>
           ) : (
             <p>The file on disk will be replaced with this version's content. Nothing is lost — every version stays in the history.</p>
@@ -382,100 +395,284 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
   );
 }
 
-function VersionDetails(props: {
-  commit: CommitRow;
+// ── Details tab ────────────────────────────────────────────────────────────
+
+function DetailsTab(props: {
+  doc: DocumentInfo;
   graph: DocumentGraph;
+  commit: CommitRow | null;
+  status: UpstreamStatus | null;
   readOnly: boolean;
-  onOpenCopy: () => void;
-  onBranch: () => void;
-  onRestore: () => void;
-  onSend: () => void;
+  onOpenCopy: (c: CommitRow) => void;
+  onBranch: (c: CommitRow) => void;
+  onRestore: (c: CommitRow) => void;
+  onSend: (c: CommitRow) => void;
   onSwitchTo: (branchId: string) => void;
-  onRename: (commit: CommitRow) => void;
+  onRenameVersion: (c: CommitRow) => void;
+  onRenameBranch: (b: BranchRow) => void;
+  onRecolor: (b: BranchRow, color: string) => void;
+  onArchive: (b: BranchRow, archived: boolean) => void;
+  onCompareToMain: (b: BranchRow) => void;
+  onCompareWithParent: (c: CommitRow) => void;
+  onShowUpstream: (s: UpstreamStatus) => void;
+  onMarkSynced: (b: BranchRow) => void;
 }) {
-  const { commit, graph } = props;
+  const { graph, commit, readOnly } = props;
+  if (!commit) {
+    return <p className="dock-empty">Pick a version in the tree, or a branch on the left, to see its details here.</p>;
+  }
   const branch = graph.branches.find((b) => b.id === commit.branchId);
   const sends = graph.sends.filter((s) => s.commitId === commit.id);
   const isHead = branch?.headCommitId === commit.id;
-  // Branches whose tip is this version and that aren't the working branch —
-  // selecting another branch's tip is how you jump onto that branch.
-  const switchableBranches = graph.branches.filter(
-    (b) => b.headCommitId === commit.id && b.id !== graph.document.currentBranchId && !b.archived,
-  );
+  const isCurrentBranch = commit.branchId === graph.document.currentBranchId;
+  const trunk = graph.branches[0];
+  const switchable = isHead && branch && !isCurrentBranch && !branch.archived;
+  const comparableToMain = branch && trunk && branch.id !== trunk.id && !!branch.headCommitId && !!trunk.headCommitId;
 
   return (
-    <div className="version-details">
-      <h2>
-        {commit.message ?? 'Saved version'}{' '}
-        <button type="button" className="btn btn-mini" onClick={() => props.onRename(commit)} title="Rename this version">
-          ✎ Rename
-        </button>
-      </h2>
-      <dl>
-        <div>
-          <dt>When</dt>
-          <dd>{new Date(commit.createdAt).toLocaleString()}</dd>
-        </div>
-        <div>
-          <dt>Branch</dt>
-          <dd>
-            <span className="dg-branch-pill" style={{ ['--dg-pill' as string]: branch?.color }}>
-              {branch?.name}
-            </span>
-          </dd>
-        </div>
-        {sends.length > 0 && (
-          <div>
-            <dt>Sent to</dt>
-            <dd>
-              {sends.map((s) => (
-                <div key={s.id} className="send-line">
-                  ✉ {s.recipient}
-                  {s.channel ? ` · ${s.channel}` : ''} · {new Date(s.sentAt).toLocaleDateString()}
-                </div>
-              ))}
-            </dd>
-          </div>
-        )}
-      </dl>
+    <div className="details-tab">
+      <div className="details-main">
+        <div className="version-details">
+          <h2>
+            {commit.message ?? 'Saved version'}{' '}
+            {!readOnly && (
+              <button type="button" className="btn btn-mini" onClick={() => props.onRenameVersion(commit)}>
+                ✎ Rename
+              </button>
+            )}
+          </h2>
+          <dl>
+            <div>
+              <dt>When</dt>
+              <dd>{new Date(commit.createdAt).toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Branch</dt>
+              <dd>
+                <span className="dg-branch-pill" style={{ ['--dg-pill' as string]: branch?.color }}>
+                  {branch?.name}
+                </span>
+              </dd>
+            </div>
+            {sends.length > 0 && (
+              <div>
+                <dt>Sent to</dt>
+                <dd>
+                  {sends.map((s) => (
+                    <div key={s.id} className="send-line">
+                      ✉ {s.recipient}
+                      {s.channel ? ` · ${s.channel}` : ''} · {new Date(s.sentAt).toLocaleDateString()}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            )}
+          </dl>
 
-      <div className="version-actions">
-        {!props.readOnly &&
-          switchableBranches.map((b) => (
-            <button key={b.id} type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(b.id)}>
-              Work on “{b.name}”
+          <div className="version-actions">
+            {switchable && (
+              <button type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(branch!.id)}>
+                Work on “{branch!.name}”
+              </button>
+            )}
+            {commit.parentId && (
+              <button type="button" className="btn" onClick={() => props.onCompareWithParent(commit)}>
+                Compare with previous
+              </button>
+            )}
+            {comparableToMain && branch && (
+              <button type="button" className="btn" onClick={() => props.onCompareToMain(branch)}>
+                Compare to {trunk!.name}
+              </button>
+            )}
+            {!readOnly && !isCurrentBranch && (
+              <button type="button" className="btn" title="Bring this version's content onto your current branch" onClick={() => props.onRestore(commit)}>
+                Copy to my branch
+              </button>
+            )}
+            <button type="button" className="btn" onClick={() => props.onOpenCopy(commit)} title="Read-only temp copy — edits there are not tracked">
+              Preview a copy
             </button>
-          ))}
-        {!props.readOnly && commit.branchId !== graph.document.currentBranchId && (
-          <button
-            type="button"
-            className="btn"
-            title="Bring this version's content onto your current branch as a new version"
-            onClick={props.onRestore}
-          >
-            Copy to my branch
-          </button>
-        )}
-        <button type="button" className="btn" onClick={props.onOpenCopy} title="Opens a read-only temp copy — edits there are not tracked">
-          Preview a copy
-        </button>
-        {!props.readOnly && (
-          <button type="button" className="btn" onClick={props.onBranch}>
-            Branch from here
-          </button>
-        )}
-        {!props.readOnly && !isHead && commit.branchId === graph.document.currentBranchId && (
-          <button type="button" className="btn" onClick={props.onRestore}>
-            Restore
-          </button>
-        )}
-        <button type="button" className="btn" onClick={props.onSend}>
-          Mark as sent…
-        </button>
+            {!readOnly && (
+              <button type="button" className="btn" onClick={() => props.onBranch(commit)}>
+                Branch from here
+              </button>
+            )}
+            {!readOnly && !isHead && isCurrentBranch && (
+              <button type="button" className="btn" onClick={() => props.onRestore(commit)}>
+                Restore
+              </button>
+            )}
+            <button type="button" className="btn" onClick={() => props.onSend(commit)}>
+              Mark as sent…
+            </button>
+          </div>
+
+          {isHead && branch && (
+            <div className="branch-controls">
+              <span className="branch-controls-label">Branch “{branch.name}”</span>
+              {props.status && props.status.behind > 0 && (
+                <>
+                  <button type="button" className="behind-badge" onClick={() => props.onShowUpstream(props.status!)}>
+                    behind {props.status.upstreamBranchName} by {props.status.behind} — view
+                  </button>
+                  <button type="button" className="btn btn-mini" onClick={() => props.onMarkSynced(branch)}>
+                    Caught up
+                  </button>
+                </>
+              )}
+              {!readOnly && (
+                <button type="button" className="btn btn-mini" onClick={() => props.onRenameBranch(branch)}>
+                  Rename branch
+                </button>
+              )}
+              {!readOnly && (
+                <select className="branch-color-pick" value={branch.color} title="Branch color" onChange={(e) => props.onRecolor(branch, e.target.value)}>
+                  {[...new Set([branch.color, ...SWATCHES])].map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {!readOnly && !isCurrentBranch && branch.id !== trunk?.id && (
+                <button type="button" className="btn btn-mini" onClick={() => props.onArchive(branch, !branch.archived)}>
+                  {branch.archived ? 'Unarchive' : 'Archive'}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <VersionPreview commitId={commit.id} />
       </div>
     </div>
   );
 }
+
+function VersionPreview({ commitId }: { commitId: string }) {
+  const [lines, setLines] = useState<string[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setLines(null);
+    void window.docgit.versionPreview(commitId).then((p) => {
+      if (alive) setLines(p.lines);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [commitId]);
+
+  return (
+    <div className="version-preview">
+      <div className="version-preview-head">Document preview</div>
+      <div className="version-preview-body">
+        {lines === null ? (
+          <span className="dock-empty">Loading…</span>
+        ) : lines.length === 0 ? (
+          <span className="dock-empty">(empty)</span>
+        ) : (
+          lines.map((line, i) => (
+            <p key={i} className={line.startsWith('▦') || line.startsWith('◻') ? 'version-preview-heading' : ''}>
+              {line || ' '}
+            </p>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Changes tab ────────────────────────────────────────────────────────────
+
+function ChangesTab(props: {
+  comparison: { diff: DocDiff; fromLabel: string; toLabel: string } | null;
+  selected: CommitRow[];
+  lastSelected: CommitRow | null;
+  trunk: BranchRow | undefined;
+  graph: DocumentGraph;
+  onClose: () => void;
+  onComparePair: () => void;
+  onCompareParent: (c: CommitRow) => void;
+  onCompareBranchToMain: (b: BranchRow) => void;
+}) {
+  const { comparison, selected, lastSelected, trunk, graph } = props;
+  if (comparison) {
+    return (
+      <div className="changes-tab">
+        <div className="panel-bar">
+          <h2>What changed</h2>
+          <button type="button" className="btn btn-ghost" onClick={props.onClose}>
+            ✕ Close
+          </button>
+        </div>
+        <DiffView diff={comparison.diff} oldLabel={comparison.fromLabel} newLabel={comparison.toLabel} />
+      </div>
+    );
+  }
+  if (selected.length === 2) {
+    return (
+      <div className="dock-cta">
+        <p>
+          Two versions selected — <strong>{selected[0]!.message ?? 'version'} ↔ {selected[1]!.message ?? 'version'}</strong>
+        </p>
+        <button type="button" className="btn btn-primary" onClick={props.onComparePair}>
+          Compare these versions
+        </button>
+      </div>
+    );
+  }
+  if (lastSelected) {
+    const branch = graph.branches.find((b) => b.id === lastSelected.branchId);
+    const canBranchVsMain = branch && trunk && branch.id !== trunk.id && !!branch.headCommitId && !!trunk.headCommitId;
+    return (
+      <div className="dock-cta">
+        <p>Compare “{lastSelected.message ?? 'this version'}” with…</p>
+        {lastSelected.parentId && (
+          <button type="button" className="btn" onClick={() => props.onCompareParent(lastSelected)}>
+            the previous version
+          </button>
+        )}
+        {canBranchVsMain && branch && (
+          <button type="button" className="btn" onClick={() => props.onCompareBranchToMain(branch)}>
+            {trunk!.name} (latest)
+          </button>
+        )}
+        <p className="dock-hint">…or ⌘-click a second version in the tree.</p>
+      </div>
+    );
+  }
+  return <p className="dock-empty">Select a version, then compare it with its previous version, with Main, or with any other version (⌘-click two).</p>;
+}
+
+// ── Sent tab ───────────────────────────────────────────────────────────────
+
+function SentTab({ graph, onOpenVersion }: { graph: DocumentGraph; onOpenVersion: (commitId: string) => void }) {
+  const byMessage = new Map(graph.commits.map((c) => [c.id, c.message]));
+  if (graph.sends.length === 0) {
+    return <p className="dock-empty">No version of this document has been marked as sent yet. Select a version → “Mark as sent…”.</p>;
+  }
+  const sends = [...graph.sends].sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+  return (
+    <ul className="sent-tab">
+      {sends.map((s) => (
+        <li key={s.id}>
+          <span className="sent-recipient">✉ {s.recipient}</span>
+          <span className="sent-version">{byMessage.get(s.commitId) ?? 'Saved version'}</span>
+          <span className="sent-when">
+            {new Date(s.sentAt).toLocaleDateString()}
+            {s.channel ? ` · ${s.channel}` : ''}
+          </span>
+          <button type="button" className="btn btn-mini" onClick={() => onOpenVersion(s.commitId)}>
+            Show version
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// ── Dialogs & shared bits ──────────────────────────────────────────────────
 
 const SWATCHES = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16'];
 
@@ -516,121 +713,13 @@ function NameDialog(props: {
   );
 }
 
-function BranchPanel({
-  graph,
-  statuses,
-  onCompareToMain,
-  onRenameBranch,
-  onShowUpstream,
-  onMarkSynced,
-  onSwitch,
-}: {
-  graph: DocumentGraph;
-  statuses: { branchId: string; status: UpstreamStatus | null }[];
-  onCompareToMain: (b: BranchRow) => void;
-  onRenameBranch: (b: BranchRow) => void;
-  onShowUpstream: (s: UpstreamStatus) => void;
-  onMarkSynced: (branchId: string) => void;
-  onSwitch: (branchId: string) => void;
-}) {
-  const docId = graph.document.id;
-  const trunk = graph.branches[0];
-  const statusOf = (branchId: string) => statuses.find((s) => s.branchId === branchId)?.status ?? null;
-  return (
-    <div className="branch-panel">
-      <h2>Branches</h2>
-      <ul>
-        {graph.branches.map((branch) => {
-          const isCurrent = branch.id === graph.document.currentBranchId;
-          const status = statusOf(branch.id);
-          const comparable =
-            trunk &&
-            branch.id !== trunk.id &&
-            !!branch.headCommitId &&
-            !!trunk.headCommitId &&
-            branch.headCommitId !== trunk.headCommitId;
-          return (
-            <li key={branch.id} className={branch.archived ? 'is-archived' : ''}>
-              <span className="branch-swatch" style={{ background: branch.color }} />
-              <span className="branch-name">
-                {branch.name}
-                {branch.archived ? ' (archived)' : ''}
-                {status && status.behind > 0 && (
-                  <button
-                    type="button"
-                    className="behind-badge behind-badge-mini"
-                    title={`${status.upstreamBranchName} has ${status.behind} change${status.behind > 1 ? 's' : ''} this branch hasn't seen — click to view them`}
-                    onClick={() => onShowUpstream(status)}
-                  >
-                    behind by {status.behind}
-                  </button>
-                )}
-              </span>
-              <span className="branch-tools">
-                {status && status.behind > 0 && (
-                  <button
-                    type="button"
-                    className="btn btn-mini"
-                    title="Mark this branch as caught up with the upstream changes"
-                    onClick={() => onMarkSynced(branch.id)}
-                  >
-                    Caught up
-                  </button>
-                )}
-                {comparable && (
-                  <button type="button" className="btn btn-mini" onClick={() => onCompareToMain(branch)}>
-                    Compare to {trunk!.name}
-                  </button>
-                )}
-                {!isCurrent && !branch.archived && (
-                  <button type="button" className="btn btn-mini" onClick={() => onSwitch(branch.id)}>
-                    Switch to
-                  </button>
-                )}
-                {isCurrent && <span className="branch-current-tag">current</span>}
-                <button type="button" className="btn btn-mini" onClick={() => onRenameBranch(branch)}>
-                  Rename
-                </button>
-                <select
-                  className="branch-color-pick"
-                  value={branch.color}
-                  title="Branch color"
-                  onChange={(e) => void window.docgit.setBranchColor(docId, branch.id, e.target.value)}
-                >
-                  {[...new Set([branch.color, ...SWATCHES])].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                {!isCurrent && (
-                  <button
-                    type="button"
-                    className="btn btn-mini"
-                    onClick={() => void window.docgit.setBranchArchived(docId, branch.id, !branch.archived)}
-                  >
-                    {branch.archived ? 'Unarchive' : 'Archive'}
-                  </button>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-      <p className="branch-panel-hint">
-        Select a version in the tree to open, branch, restore, or mark it as sent.
-      </p>
-    </div>
-  );
-}
-
 function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
   const [name, setName] = useState('');
   return (
     <Modal title="Name this branch" onClose={props.onClose}>
       <p className="modal-hint">
-        A branch is a named variant of this document with its own life — give it the purpose it exists for:
-        “CV — Marketing roles”, “Contract — Client B”, “French version”.
+        A branch is a named variant of this document with its own life — give it the purpose it exists for: “CV — Marketing
+        roles”, “Contract — Client B”, “French version”.
       </p>
       <input
         autoFocus
@@ -676,12 +765,7 @@ function SendDialog(props: { onClose: () => void; onMark: (recipient: string, ch
         <button type="button" className="btn" onClick={props.onClose}>
           Cancel
         </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={!recipient.trim()}
-          onClick={() => void props.onMark(recipient.trim(), channel)}
-        >
+        <button type="button" className="btn btn-primary" disabled={!recipient.trim()} onClick={() => void props.onMark(recipient.trim(), channel)}>
           Mark as sent
         </button>
       </div>
