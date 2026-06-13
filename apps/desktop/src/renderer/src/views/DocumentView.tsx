@@ -52,11 +52,21 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
     setCloud(await window.docgit.cloudStatus(doc.id));
   }, [doc.id]);
 
+  const [justCaptured, setJustCaptured] = useState(false);
   useEffect(() => {
     void refresh();
-    return window.docgit.onChanged((id) => {
-      if (id === doc.id) void refresh();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = window.docgit.onChanged((id) => {
+      if (id !== doc.id) return;
+      void refresh();
+      setJustCaptured(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setJustCaptured(false), 2500);
     });
+    return () => {
+      off();
+      clearTimeout(timer);
+    };
   }, [doc.id, refresh]);
 
   const commitsById = useMemo(() => new Map((graph?.commits ?? []).map((c) => [c.id, c])), [graph]);
@@ -159,6 +169,11 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
           </span>
         </div>
         <div className="docview-actions">
+          {!doc.remoteKind && (
+            <span className={`watch-chip${justCaptured ? ' is-captured' : ''}`} title="DocGit captures every save automatically">
+              {justCaptured ? '✓ version captured' : '● watching for saves'}
+            </span>
+          )}
           {hasArchived && (
             <label className="docview-archived-toggle">
               <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
