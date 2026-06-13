@@ -596,6 +596,16 @@ export class SnapshotStore {
       this.db.exec('ROLLBACK');
       throw err;
     }
+    // Give the new branch its own starting commit (same content as the fork
+    // point, reusing the existing object blobs) so it appears immediately as
+    // its own line in the tree and has a head that belongs to it — not to the
+    // parent branch. Without this a fresh branch is invisible and ambiguous.
+    this.insertCommit(documentId, id, fromCommitId, {
+      modelHash: from.modelHash,
+      fileHash: from.fileHash,
+      message: `Started “${name}”`,
+      author: null,
+    });
     return this.getBranch(id);
   }
 

@@ -43,12 +43,17 @@ describe('SnapshotStore — branches, sends, restore', () => {
 
     const doc = store.getDocument(base.documentId);
     const branch = store.createBranch(doc.id, 'CV — Marketing roles', base.id);
-    expect(branch.headCommitId).toBe(base.id);
+    // A new branch gets its own starting commit (forked off `base`) so it is
+    // immediately visible and unambiguous.
+    const start = store.getCommit(branch.headCommitId!);
+    expect(start.branchId).toBe(branch.id);
+    expect(start.parentId).toBe(base.id);
+    expect(start.message).toContain('Started');
     expect(store.getDocument(doc.id).currentBranchId).toBe(branch.id);
 
     const onBranch = snapshot(['CV base', 'marketing focus'], 'tailor for marketing').commit;
     expect(onBranch.branchId).toBe(branch.id);
-    expect(onBranch.parentId).toBe(base.id);
+    expect(onBranch.parentId).toBe(start.id);
     // Main is untouched.
     const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
     expect(store.getCommit(main.headCommitId!).message).toBe('main grows');
@@ -60,10 +65,13 @@ describe('SnapshotStore — branches, sends, restore', () => {
     const variant = store.createBranch(doc.id, 'Client B', base.id);
     const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
 
+    const variantStart = store.getBranch(variant.id).headCommitId;
     store.switchBranch(doc.id, main.id);
     const backOnMain = snapshot(['v1', 'main v2'], 'on main').commit;
     expect(backOnMain.branchId).toBe(main.id);
-    expect(store.getBranch(variant.id).headCommitId).toBe(base.id);
+    // The variant's head is its own starting commit, untouched by Main's work.
+    expect(store.getBranch(variant.id).headCommitId).toBe(variantStart);
+    expect(store.getCommit(variantStart!).branchId).toBe(variant.id);
   });
 
   it('rename / recolor / archive branches; archiving the current branch is rejected', () => {
@@ -121,7 +129,8 @@ describe('SnapshotStore — branches, sends, restore', () => {
 
     const graph = store.graph(doc.id);
     expect(graph.branches.map((b) => b.name)).toEqual(['Main', 'Variant']);
-    expect(graph.commits.map((c) => c.message)).toEqual(['base', 'variant work']);
+    // base (Main) → "Started Variant" (Variant start) → variant work (Variant)
+    expect(graph.commits.map((c) => c.message)).toEqual(['base', 'Started “Variant”', 'variant work']);
     expect(graph.sends).toHaveLength(1);
     expect(graph.document.currentBranchId).toBe(graph.branches[1]!.id);
   });
@@ -178,7 +187,9 @@ describe('SnapshotStore — branches, sends, restore', () => {
       const main = store.listBranches(doc.id).find((b) => b.name === 'Main')!;
       store.switchBranch(doc.id, main.id);
       autoSave(['base', 'after fork']);
-      expect(store.log(docPath)).toHaveLength(3);
+      // base + fork point + Variant's start commit + after-fork = 4; the fork
+      // point is preserved (not coalesced away) because Variant forked from it.
+      expect(store.log(docPath)).toHaveLength(4);
       expect(store.getCommit(fork.commit.id)).toBeTruthy();
     });
 

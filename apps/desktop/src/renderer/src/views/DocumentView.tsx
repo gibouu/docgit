@@ -261,8 +261,6 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                 onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
                 onRecolor={(b, color) => void window.docgit.setBranchColor(doc.id, b.id, color)}
                 onArchive={(b, archived) => void window.docgit.setBranchArchived(doc.id, b.id, archived)}
-                onCompareToMain={compareBranchToMain}
-                onCompareWithParent={compareWithParent}
                 onShowUpstream={showUpstreamChanges}
                 onMarkSynced={(b) => void window.docgit.markBranchSynced(doc.id, b.id)}
               />
@@ -344,8 +342,12 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
         <BranchDialog
           onClose={() => setDialog(null)}
           onCreate={async (name) => {
-            await window.docgit.createBranch(doc.id, name, dialog.from.id);
+            const branch = await window.docgit.createBranch(doc.id, name, dialog.from.id);
             setDialog(null);
+            // Jump straight onto the new branch so it's obvious you're now in it.
+            setComparison(null);
+            setTab('details');
+            if (branch.headCommitId) setSelectedIds([branch.headCommitId]);
           }}
         />
       )}
@@ -412,12 +414,11 @@ function DetailsTab(props: {
   onRenameBranch: (b: BranchRow) => void;
   onRecolor: (b: BranchRow, color: string) => void;
   onArchive: (b: BranchRow, archived: boolean) => void;
-  onCompareToMain: (b: BranchRow) => void;
-  onCompareWithParent: (c: CommitRow) => void;
   onShowUpstream: (s: UpstreamStatus) => void;
   onMarkSynced: (b: BranchRow) => void;
 }) {
   const { graph, commit, readOnly } = props;
+  const trunk = graph.branches[0];
   if (!commit) {
     return <p className="dock-empty">Pick a version in the tree, or a branch on the left, to see its details here.</p>;
   }
@@ -425,9 +426,8 @@ function DetailsTab(props: {
   const sends = graph.sends.filter((s) => s.commitId === commit.id);
   const isHead = branch?.headCommitId === commit.id;
   const isCurrentBranch = commit.branchId === graph.document.currentBranchId;
-  const trunk = graph.branches[0];
+  const isWorkingHead = isHead && isCurrentBranch;
   const switchable = isHead && branch && !isCurrentBranch && !branch.archived;
-  const comparableToMain = branch && trunk && branch.id !== trunk.id && !!branch.headCommitId && !!trunk.headCommitId;
 
   return (
     <div className="details-tab">
@@ -441,6 +441,9 @@ function DetailsTab(props: {
               </button>
             )}
           </h2>
+          {!isHead && (
+            <p className="not-latest">⚠ Not the latest version of “{branch?.name}” — you're looking at history.</p>
+          )}
           <dl>
             <div>
               <dt>When</dt>
@@ -472,35 +475,30 @@ function DetailsTab(props: {
           <div className="version-actions">
             {switchable && (
               <button type="button" className="btn btn-primary" onClick={() => props.onSwitchTo(branch!.id)}>
-                Work on “{branch!.name}”
+                Work on this branch
               </button>
             )}
-            {commit.parentId && (
-              <button type="button" className="btn" onClick={() => props.onCompareWithParent(commit)}>
-                Compare with previous
+            {!readOnly && isCurrentBranch && !isWorkingHead && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                title="Make this version the latest on this branch — what Word will open"
+                onClick={() => props.onRestore(commit)}
+              >
+                Restore this version
               </button>
             )}
-            {comparableToMain && branch && (
-              <button type="button" className="btn" onClick={() => props.onCompareToMain(branch)}>
-                Compare to {trunk!.name}
-              </button>
-            )}
-            {!readOnly && !isCurrentBranch && (
-              <button type="button" className="btn" title="Bring this version's content onto your current branch" onClick={() => props.onRestore(commit)}>
-                Copy to my branch
-              </button>
-            )}
-            <button type="button" className="btn" onClick={() => props.onOpenCopy(commit)} title="Read-only temp copy — edits there are not tracked">
-              Preview a copy
+            <button
+              type="button"
+              className="btn"
+              onClick={() => props.onOpenCopy(commit)}
+              title="Open a read-only copy of exactly this version in the Office app"
+            >
+              Open this version
             </button>
             {!readOnly && (
               <button type="button" className="btn" onClick={() => props.onBranch(commit)}>
                 Branch from here
-              </button>
-            )}
-            {!readOnly && !isHead && isCurrentBranch && (
-              <button type="button" className="btn" onClick={() => props.onRestore(commit)}>
-                Restore
               </button>
             )}
             <button type="button" className="btn" onClick={() => props.onSend(commit)}>
