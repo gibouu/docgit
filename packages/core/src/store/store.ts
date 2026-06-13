@@ -171,7 +171,9 @@ export class SnapshotStore {
       this.insertCommit(b.document_id, b.id, from.id, {
         modelHash: from.modelHash,
         fileHash: from.fileHash,
-        message: `Started “${b.name}”`,
+        // Name-free: the branch's name lives only on the branch itself, so
+        // renaming the branch never leaves a stale name on this commit.
+        message: 'Branch created',
         author: null,
         createdAt: from.createdAt, // sit right next to the fork point, not "now"
       });
@@ -250,6 +252,10 @@ export class SnapshotStore {
       CREATE INDEX IF NOT EXISTS idx_branches_document ON branches(document_id, position);
       CREATE INDEX IF NOT EXISTS idx_sends_commit ON sends(commit_id);
     `);
+    // One-time cleanup: earlier branch-start commits baked the branch name into
+    // their message ('Started "X"'), which went stale on rename. Make them
+    // name-free so a branch's name lives only on the branch.
+    this.db.exec(`UPDATE commits SET message = 'Branch created' WHERE message LIKE 'Started %'`);
   }
 
   private ensureColumn(table: string, ddl: string): void {
@@ -631,7 +637,9 @@ export class SnapshotStore {
     this.insertCommit(documentId, id, fromCommitId, {
       modelHash: from.modelHash,
       fileHash: from.fileHash,
-      message: `Started “${name}”`,
+      // Name-free (see backfillBranchStarts): the branch's name is the single
+      // source of truth, so renaming never strands an old name on a commit.
+      message: 'Branch created',
       author: null,
     });
     return this.getBranch(id);
