@@ -48,7 +48,7 @@ describe('SnapshotStore — branches, sends, restore', () => {
     const start = store.getCommit(branch.headCommitId!);
     expect(start.branchId).toBe(branch.id);
     expect(start.parentId).toBe(base.id);
-    expect(start.message).toContain('Started');
+    expect(start.message).toBe('Branch created');
     expect(store.getDocument(doc.id).currentBranchId).toBe(branch.id);
 
     const onBranch = snapshot(['CV base', 'marketing focus'], 'tailor for marketing').commit;
@@ -129,8 +129,8 @@ describe('SnapshotStore — branches, sends, restore', () => {
 
     const graph = store.graph(doc.id);
     expect(graph.branches.map((b) => b.name)).toEqual(['Main', 'Variant']);
-    // base (Main) → "Started Variant" (Variant start) → variant work (Variant)
-    expect(graph.commits.map((c) => c.message)).toEqual(['base', 'Started “Variant”', 'variant work']);
+    // base (Main) → branch-created (Variant start, name-free) → variant work
+    expect(graph.commits.map((c) => c.message)).toEqual(['base', 'Branch created', 'variant work']);
     expect(graph.sends).toHaveLength(1);
     expect(graph.document.currentBranchId).toBe(graph.branches[1]!.id);
   });
