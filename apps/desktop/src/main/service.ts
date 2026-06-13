@@ -23,7 +23,7 @@ import {
 } from '@docgit/core';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join } from 'node:path';
 
@@ -90,15 +90,31 @@ export class DocumentService {
   private watchers = new Map<string, FSWatcher>();
   private watchersReady: Promise<void>[] = [];
   private pollers = new Map<string, NodeJS.Timeout>();
+  private logPath: string;
 
   constructor(
     dbPath: string,
     private onChanged: (documentId: string) => void,
   ) {
     this.store = new SnapshotStore(dbPath);
+    this.logPath = join(dirname(dbPath), 'activity.log');
+    this.log(`startup — tracking ${this.store.listDocuments().length} document(s)`);
     for (const doc of this.store.listDocuments()) {
       if (isRemoteKey(doc.path)) this.startPoller(doc.id);
       else this.watch(doc);
+    }
+  }
+
+  /**
+   * Append a timestamped line to activity.log in the data directory. This is
+   * the diagnostic trail for "my save didn't show up" reports — it records
+   * every watcher event, commit outcome, and file write.
+   */
+  private log(message: string): void {
+    try {
+      appendFileSync(this.logPath, `${new Date().toISOString()}  ${message}\n`);
+    } catch {
+      // logging must never break the app
     }
   }
 
@@ -298,6 +314,7 @@ export class DocumentService {
    * branch AND is written back to the file on disk.
    */
   restoreVersion(documentId: string, commitId: string): CommitResult {
+    this.log(`ACTION restoreVersion ${commitId.slice(0, 8)}`);
     this.snapshotDiskBeforeOverwrite(documentId);
     const result = this.store.restoreVersion(documentId, commitId);
     if (result.created) {
@@ -325,6 +342,7 @@ export class DocumentService {
   // ── Branches ───────────────────────────────────────────────────────────
 
   createBranch(documentId: string, name: string, fromCommitId: string): BranchRow {
+    this.log(`ACTION createBranch "${name}" from ${fromCommitId.slice(0, 8)}`);
     this.snapshotDiskBeforeOverwrite(documentId);
     const branch = this.store.createBranch(documentId, name, fromCommitId);
     this.writeFileFromCommit(documentId, fromCommitId);
@@ -334,6 +352,7 @@ export class DocumentService {
 
   /** Switch the working branch and sync the file on disk to that branch's latest version. */
   switchBranch(documentId: string, branchId: string): BranchRow {
+    this.log(`ACTION switchBranch → ${branchId.slice(0, 8)}`);
     this.snapshotDiskBeforeOverwrite(documentId);
     const branch = this.store.switchBranch(documentId, branchId);
     if (branch.headCommitId) this.writeFileFromCommit(documentId, branch.headCommitId);
@@ -533,18 +552,27 @@ export class DocumentService {
     let bytes: Buffer;
     try {
       bytes = readFileSync(path);
-    } catch {
+    } catch (err) {
+      this.log(`commit SKIP unreadable ${basename(path)} (${(err as Error).message})`);
       return undefined; // transient: editor mid-save or file temporarily gone
     }
+    let model;
     try {
-      const model = parseDocument(path, bytes);
-      return this.store.commit(path, bytes, model, {
-        ...(message !== undefined ? { message } : {}),
-        ...(coalesceWindowMs !== undefined ? { coalesceWindowMs } : {}),
-      });
-    } catch {
-      return undefined; // not a parseable docx right now (partial write) — skip
+      model = parseDocument(path, bytes);
+    } catch (err) {
+      this.log(`commit SKIP unparseable ${basename(path)} (${bytes.length} bytes; ${(err as Error).message})`);
+      return undefined; // not a parseable document right now (partial write)
     }
+    const result = this.store.commit(path, bytes, model, {
+      ...(message !== undefined ? { message } : {}),
+      ...(coalesceWindowMs !== undefined ? { coalesceWindowMs } : {}),
+    });
+    this.log(
+      `commit ${basename(path)} → ${result.created ? 'CAPTURED' : 'no-change'} ` +
+        `head=${result.commit.id.slice(0, 8)} branch=${result.commit.branchId.slice(0, 8)} ` +
+        `content=${result.commit.modelHash.slice(0, 8)} msg="${result.commit.message ?? ''}"`,
+    );
+    return result;
   }
 
   /**
@@ -563,6 +591,7 @@ export class DocumentService {
     const doc = this.store.getDocument(documentId);
     if (isRemoteKey(doc.path)) return; // remote documents are never written back
     const commit = this.store.getCommit(commitId);
+    this.log(`WRITE-TO-DISK ${basename(doc.path)} ← version ${commitId.slice(0, 8)} content=${commit.modelHash.slice(0, 8)}`);
     writeFileSync(doc.path, this.store.getFileBytes(commit));
   }
 
@@ -585,13 +614,17 @@ export class DocumentService {
       // Wait for the write to settle before snapshotting.
       awaitWriteFinish: { stabilityThreshold: 400, pollInterval: 100 },
     });
-    const onEvent = (path: string) => {
-      if (basename(path) === name) this.autoCommit(doc);
+    const onEvent = (event: string) => (path: string) => {
+      if (basename(path) !== name) return;
+      this.log(`watcher ${event} ${name}`);
+      this.autoCommit(doc);
     };
-    watcher.on('add', onEvent);
-    watcher.on('change', onEvent);
+    watcher.on('add', onEvent('add'));
+    watcher.on('change', onEvent('change'));
+    watcher.on('error', (err) => this.log(`watcher ERROR ${name}: ${String(err)}`));
     this.watchers.set(doc.id, watcher);
     this.watchersReady.push(new Promise((resolve) => watcher.once('ready', resolve)));
+    this.log(`watching ${name} in ${dir}`);
   }
 
   /** Resolves once all watchers finished their initial scan — saves before this can be missed. */

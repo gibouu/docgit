@@ -773,6 +773,22 @@ body {
 
 /* ── Cloud-sync awareness ────────────────────────────────────────────── */
 
+.watch-chip {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--dg-ink-soft);
+  background: color-mix(in srgb, var(--dg-hairline) 35%, transparent);
+  transition: background 200ms ease, color 200ms ease;
+}
+
+.watch-chip.is-captured {
+  color: var(--dg-accent-ink);
+  background: var(--dg-accent);
+}
+
 .cloud-chip {
   flex: none;
   font-size: 11px;
