@@ -57,6 +57,7 @@ export interface DocgitApi {
   syncRemote(documentId: string): Promise<CommitResult | undefined>;
   openDocument(documentId: string): Promise<string>;
   getGraph(documentId: string): Promise<DocumentGraph>;
+  versionPreview(commitId: string): Promise<{ kind: string; lines: string[] }>;
 
   saveVersion(documentId: string, message?: string): Promise<CommitResult>;
   getDiff(fromId: string, toId: string): Promise<{ diff: DocDiff; fromLabel: string; toLabel: string }>;

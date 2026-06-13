@@ -9,6 +9,7 @@ const api = {
   addDocument: () => ipcRenderer.invoke('docs:add'),
   openDocument: (documentId: string) => ipcRenderer.invoke('docs:open', documentId),
   getGraph: (documentId: string) => ipcRenderer.invoke('docs:graph', documentId),
+  versionPreview: (commitId: string) => ipcRenderer.invoke('version:preview', commitId),
 
   saveVersion: (documentId: string, message?: string) => ipcRenderer.invoke('version:save', documentId, message),
   getDiff: (fromId: string, toId: string) => ipcRenderer.invoke('version:diff', fromId, toId),

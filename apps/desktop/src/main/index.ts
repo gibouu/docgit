@@ -83,6 +83,7 @@ function registerIpc(svc: DocumentService): void {
   );
   ipcMain.handle('remote:sync', (_e, documentId: string) => svc.syncRemote(documentId));
   ipcMain.handle('docs:graph', (_e, documentId: string) => svc.getGraph(documentId));
+  ipcMain.handle('version:preview', (_e, commitId: string) => svc.versionPreview(commitId));
 
   ipcMain.handle('version:save', (_e, documentId: string, message?: string) => svc.saveVersion(documentId, message));
   ipcMain.handle('version:diff', (_e, fromId: string, toId: string) => ({

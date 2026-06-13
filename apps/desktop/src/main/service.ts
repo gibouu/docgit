@@ -136,6 +136,38 @@ export class DocumentService {
     return this.store.getDocument(documentId).path;
   }
 
+  /**
+   * Readable content of a version for the preview pane. DocGit can't render a
+   * pixel-perfect Office visual, so this returns the extracted text/structure
+   * of the snapshot — paragraphs for Word, cells per sheet for spreadsheets,
+   * shape text per slide for decks.
+   */
+  versionPreview(commitId: string): { kind: string; lines: string[] } {
+    const model = this.store.getModel(this.store.getCommit(commitId));
+    if (model.kind === 'spreadsheet') {
+      const lines: string[] = [];
+      for (const sheet of model.sheets) {
+        lines.push(`▦ ${sheet.name}`);
+        for (const [ref, cell] of Object.entries(sheet.cells)) {
+          lines.push(`  ${ref}: ${cell.v}${cell.f ? `   ${cell.f}` : ''}`);
+        }
+      }
+      return { kind: 'spreadsheet', lines };
+    }
+    if (model.kind === 'slides') {
+      const lines: string[] = [];
+      model.slides.forEach((slide, i) => {
+        lines.push(`◻ Slide ${i + 1}`);
+        for (const shape of slide.shapes) lines.push(`  ${shape.text.replace(/\n/g, ' / ')}`);
+      });
+      return { kind: 'slides', lines };
+    }
+    const lines = model.blocks.map((b) =>
+      b.type === 'paragraph' ? b.text : b.rows.map((r) => r.join(' | ')).join('\n'),
+    );
+    return { kind: 'text', lines };
+  }
+
   /** Cloud-sync situation for a document: provider + any conflict copies next to it. */
   cloudStatus(documentId: string): CloudStatus {
     const doc = this.store.getDocument(documentId);

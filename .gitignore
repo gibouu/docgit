@@ -7,3 +7,4 @@ coverage/
 .docgit/
 out/
 release/
+.claude/state/
