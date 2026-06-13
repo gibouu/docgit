@@ -34,6 +34,8 @@ const api = {
     ipcRenderer.invoke('send:mark', documentId, commitId, info),
 
   cloudStatus: (documentId: string) => ipcRenderer.invoke('docs:cloudStatus', documentId),
+  setSharing: (documentId: string, shared: boolean, myName: string | null) =>
+    ipcRenderer.invoke('docs:setSharing', documentId, shared, myName),
   addDocumentByPath: (path: string) => ipcRenderer.invoke('docs:addPath', path),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),

@@ -8,6 +8,8 @@ DocGit gives professionals who iterate on high-stakes documents (contracts, busi
 
 Grab the latest **[DocGit.app DMG from Releases](https://github.com/gibouu/docgit/releases/latest)** (Apple silicon). The app is **signed and notarized by Apple** — open the DMG, drag DocGit to Applications, and double-click. No security prompts, no right-click ritual.
 
+New here? Read the **[one-page tutorial](docs/TUTORIAL.md)**.
+
 ## Privacy: local only, no exceptions
 
 DocGit transfers nothing and keeps nothing outside your Mac:
