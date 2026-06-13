@@ -23,6 +23,19 @@ type DialogState =
 
 type Tab = 'details' | 'changes' | 'sent' | 'links';
 
+/** Auto-saves carry the generic "Saved" marker — not a real title. */
+function isAutoSaved(commit: { message: string | null }): boolean {
+  return !commit.message || commit.message === 'Saved';
+}
+
+/** A name when the user gave one, otherwise the timestamp. */
+function versionTitle(commit: { message: string | null; createdAt: string }): string {
+  if (isAutoSaved(commit)) {
+    return new Date(commit.createdAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  }
+  return commit.message!;
+}
+
 export function DocumentView({ document: doc, onBack, initialSelectedId }: DocumentViewProps) {
   const [graph, setGraph] = useState<DocumentGraph | null>(null);
   const [statuses, setStatuses] = useState<{ branchId: string; status: UpstreamStatus | null }[]>([]);
@@ -434,7 +447,8 @@ function DetailsTab(props: {
       <div className="details-main">
         <div className="version-details">
           <h2>
-            {commit.message ?? 'Saved version'}{' '}
+            {versionTitle(commit)}{' '}
+            {isAutoSaved(commit) && <span className="autosaved-tag">auto-saved</span>}{' '}
             {!readOnly && (
               <button type="button" className="btn btn-mini" onClick={() => props.onRenameVersion(commit)}>
                 ✎ Rename
@@ -445,10 +459,12 @@ function DetailsTab(props: {
             <p className="not-latest">⚠ Not the latest version of “{branch?.name}” — you're looking at history.</p>
           )}
           <dl>
-            <div>
-              <dt>When</dt>
-              <dd>{new Date(commit.createdAt).toLocaleString()}</dd>
-            </div>
+            {!isAutoSaved(commit) && (
+              <div>
+                <dt>When</dt>
+                <dd>{new Date(commit.createdAt).toLocaleString()}</dd>
+              </div>
+            )}
             <div>
               <dt>Branch</dt>
               <dd>
@@ -612,7 +628,7 @@ function ChangesTab(props: {
     return (
       <div className="dock-cta">
         <p>
-          Two versions selected — <strong>{selected[0]!.message ?? 'version'} ↔ {selected[1]!.message ?? 'version'}</strong>
+          Two versions selected — <strong>{versionTitle(selected[0]!)} ↔ {versionTitle(selected[1]!)}</strong>
         </p>
         <button type="button" className="btn btn-primary" onClick={props.onComparePair}>
           Compare these versions
@@ -646,17 +662,19 @@ function ChangesTab(props: {
 // ── Sent tab ───────────────────────────────────────────────────────────────
 
 function SentTab({ graph, onOpenVersion }: { graph: DocumentGraph; onOpenVersion: (commitId: string) => void }) {
-  const byMessage = new Map(graph.commits.map((c) => [c.id, c.message]));
+  const byCommit = new Map(graph.commits.map((c) => [c.id, c]));
   if (graph.sends.length === 0) {
     return <p className="dock-empty">No version of this document has been marked as sent yet. Select a version → “Mark as sent…”.</p>;
   }
   const sends = [...graph.sends].sort((a, b) => b.sentAt.localeCompare(a.sentAt));
   return (
     <ul className="sent-tab">
-      {sends.map((s) => (
+      {sends.map((s) => {
+        const c = byCommit.get(s.commitId);
+        return (
         <li key={s.id}>
           <span className="sent-recipient">✉ {s.recipient}</span>
-          <span className="sent-version">{byMessage.get(s.commitId) ?? 'Saved version'}</span>
+          <span className="sent-version">{c ? versionTitle(c) : 'version'}</span>
           <span className="sent-when">
             {new Date(s.sentAt).toLocaleDateString()}
             {s.channel ? ` · ${s.channel}` : ''}
@@ -665,7 +683,8 @@ function SentTab({ graph, onOpenVersion }: { graph: DocumentGraph; onOpenVersion
             Show version
           </button>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

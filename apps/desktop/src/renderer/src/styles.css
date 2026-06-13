@@ -602,6 +602,20 @@ body {
   .details-main { grid-template-columns: 1fr; }
 }
 
+.autosaved-tag {
+  display: inline-block;
+  vertical-align: middle;
+  font-family: var(--dg-sans);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--dg-ink-soft);
+  background: color-mix(in srgb, var(--dg-hairline) 45%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 .not-latest {
   display: inline-block;
   font-size: 11.5px;
