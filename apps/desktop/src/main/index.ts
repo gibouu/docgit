@@ -167,6 +167,7 @@ async function runSmokeTest(): Promise<void> {
   const { mkdtempSync, writeFileSync, readFileSync, rmSync } = await import('node:fs');
   const { tmpdir } = await import('node:os');
   const { zipSync, strToU8 } = await import('fflate');
+  const { parseDocx } = await import('@docgit/core');
 
   const dir = mkdtempSync(join(tmpdir(), 'docgit-electron-smoke-'));
   try {
@@ -207,6 +208,52 @@ async function runSmokeTest(): Promise<void> {
     if (after.sends.length !== 1) throw new Error('send not recorded');
     if (after.document.currentBranchId !== branch.id) throw new Error('branch not current');
 
+    // A new branch gets its own starting commit so it is visible immediately
+    // and its head belongs to the branch (not the parent).
+    const branchHead = after.branches.find((b) => b.id === branch.id)!.headCommitId!;
+    const headCommit = after.commits.find((c) => c.id === branchHead)!;
+    if (headCommit.branchId !== branch.id) throw new Error('new branch head does not belong to the branch');
+    if (after.commits.filter((c) => c.branchId === branch.id).length !== 1) {
+      throw new Error('new branch should have exactly its starting commit');
+    }
+
+    // Thorough multi-branch exercise (bulletproofing). Switching to a branch
+    // syncs the file on disk; saving lands on the right branch; restore and
+    // cross-branch compare behave.
+    await svc.whenWatchersReady();
+    const mainBranch2 = after.branches.find((b) => b.name === 'Main')!;
+    // Work on the variant: edit and save → version on the variant only.
+    writeFileSync(docPath, makeDocx(['Clause one, amended.', 'Clause two.', 'Clause three.', 'Variant-only clause.']));
+    const variantSave = svc.saveVersion(doc.id, 'variant work');
+    if (variantSave.commit.branchId !== branch.id) throw new Error('save did not land on the variant branch');
+    // Switch back to Main: the file on disk must become Main's content again.
+    svc.switchBranch(doc.id, mainBranch2.id);
+    const onDiskAfterSwitch = parseDocx(readFileSync(docPath)).blocks.map((b) => ('text' in b ? b.text : '')).join(' ');
+    if (onDiskAfterSwitch.includes('Variant-only clause')) throw new Error('switch did not restore Main content to disk');
+    // Make a second branch from Main and confirm three branches, each with a head on itself.
+    const branch2 = svc.createBranch(doc.id, 'French version', mainBranch2.headCommitId!);
+    const g3 = svc.getGraph(doc.id);
+    if (g3.branches.length !== 3) throw new Error('third branch not created');
+    for (const b of g3.branches) {
+      const h = g3.commits.find((c) => c.id === b.headCommitId);
+      if (!h || h.branchId !== b.id) throw new Error(`branch ${b.name} head must belong to it`);
+    }
+    // Compare the variant's latest against Main's latest.
+    const variantHead = g3.branches.find((b) => b.id === branch.id)!.headCommitId!;
+    const cmp = svc.diff(mainBranch2.headCommitId!, variantHead);
+    if (cmp.kind !== 'text') throw new Error('cross-branch compare should be a text diff');
+    // Restore an older Main version onto Main and confirm it becomes the head.
+    svc.switchBranch(doc.id, mainBranch2.id);
+    const oldMain = g3.commits.filter((c) => c.branchId === mainBranch2.id)[0]!;
+    const restoredMain = svc.restoreVersion(doc.id, oldMain.id);
+    if (!restoredMain.created) throw new Error('restore should create a new head');
+    if (svc.getGraph(doc.id).branches.find((b) => b.id === mainBranch2.id)!.headCommitId !== restoredMain.commit.id) {
+      throw new Error('restore did not advance the branch head');
+    }
+    void branch2;
+    // Leave the working branch on the variant for the atomic-save check below.
+    svc.switchBranch(doc.id, branch.id);
+
     // Atomic-save regression (#14): Word saves via temp-file + rename, which
     // must still be noticed by the watcher and produce a version.
     await svc.whenWatchersReady();
@@ -229,7 +276,6 @@ async function runSmokeTest(): Promise<void> {
 
     // Safety snapshot (#16): even if a save slips past the watcher entirely,
     // switching branches must rescue the disk content, never destroy it.
-    const { parseDocx } = await import('@docgit/core');
     writeFileSync(docPath, makeDocx(['Branch wording.', 'Edit the watcher never saw.']));
     const mainBranch = svc.getGraph(doc.id).branches.find((b) => b.name === 'Main')!;
     svc.switchBranch(doc.id, mainBranch.id); // overwrites disk with Main head
