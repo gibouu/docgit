@@ -73,6 +73,9 @@ function registerIpc(svc: DocumentService): void {
   });
 
   ipcMain.handle('docs:cloudStatus', (_e, documentId: string) => svc.cloudStatus(documentId));
+  ipcMain.handle('docs:setSharing', (_e, documentId: string, shared: boolean, myName: string | null) =>
+    svc.setSharing(documentId, shared, myName),
+  );
   ipcMain.handle('docs:addPath', (_e, path: string) => svc.addDocumentByPath(path));
   ipcMain.handle('docs:open', (_e, documentId: string) => {
     const target = svc.openTarget(documentId);
@@ -207,6 +210,28 @@ async function runSmokeTest(): Promise<void> {
     if (after.branches.length !== 2) throw new Error('branch not created');
     if (after.sends.length !== 1) throw new Error('send not recorded');
     if (after.document.currentBranchId !== branch.id) throw new Error('branch not current');
+
+    // Author attribution (#50): a version is stamped with the editor name
+    // embedded in the file (cp:lastModifiedBy).
+    const makeDocxBy = (paras: string[], author: string): Uint8Array => {
+      const body = paras.map((t) => `<w:p><w:r><w:t xml:space="preserve">${t}</w:t></w:r></w:p>`).join('');
+      return zipSync({
+        '[Content_Types].xml': strToU8(
+          '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        ),
+        'docProps/core.xml': strToU8(
+          `<?xml version="1.0"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"><cp:lastModifiedBy>${author}</cp:lastModifiedBy></cp:coreProperties>`,
+        ),
+        'word/document.xml': strToU8(
+          `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`,
+        ),
+      });
+    };
+    const authoredPath = join(dir, 'authored.docx');
+    writeFileSync(authoredPath, makeDocxBy(['By Marie.'], 'Marie Dupont'));
+    const adoc = svc.addDocument(authoredPath);
+    const aHead = svc.getGraph(adoc.id).commits.at(-1)!;
+    if (aHead.author !== 'Marie Dupont') throw new Error(`author not extracted: ${aHead.author}`);
 
     // A new branch gets its own starting commit so it is visible immediately
     // and its head belongs to the branch (not the parent).

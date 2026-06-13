@@ -247,6 +247,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               const isCurrent = branch.id === graph.document.currentBranchId;
               const isSelected = lastSelected?.branchId === branch.id;
               const status = statusOf(branch.id);
+              const lastEditor = branch.headCommitId ? commitsById.get(branch.headCommitId)?.author : null;
               return (
                 <li key={branch.id}>
                   <button
@@ -254,16 +255,19 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                     className={`dock-branch${isSelected ? ' is-selected' : ''}`}
                     onClick={() => selectBranch(branch.id)}
                   >
-                    <span className="dock-branch-swatch" style={{ background: branch.color }} />
-                    <span className="dock-branch-name" style={{ color: branch.color }}>
-                      {branch.name}
-                    </span>
-                    {isCurrent && <span className="dock-branch-current">working</span>}
-                    {status && status.behind > 0 && (
-                      <span className="behind-badge behind-badge-mini" title={`${status.behind} upstream change(s) not in this branch`}>
-                        −{status.behind}
+                    <span className="dock-branch-row1">
+                      <span className="dock-branch-swatch" style={{ background: branch.color }} />
+                      <span className="dock-branch-name" style={{ color: branch.color }}>
+                        {branch.name}
                       </span>
-                    )}
+                      {isCurrent && <span className="dock-branch-current">working</span>}
+                      {status && status.behind > 0 && (
+                        <span className="behind-badge behind-badge-mini" title={`${status.behind} upstream change(s) not in this branch`}>
+                          −{status.behind}
+                        </span>
+                      )}
+                    </span>
+                    {lastEditor && <span className="dock-branch-editor">last edit by {lastEditor}</span>}
                   </button>
                 </li>
               );
@@ -499,6 +503,12 @@ function DetailsTab(props: {
                 </span>
               </dd>
             </div>
+            {commit.author && (
+              <div>
+                <dt>Edited by</dt>
+                <dd className="edited-by">👤 {commit.author}</dd>
+              </div>
+            )}
             {sends.length > 0 && (
               <div>
                 <dt>Sent to</dt>

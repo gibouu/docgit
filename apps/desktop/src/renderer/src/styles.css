@@ -482,8 +482,9 @@ body {
 
 .dock-branch {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
   width: 100%;
   text-align: left;
   font-family: var(--dg-sans);
@@ -493,6 +494,18 @@ body {
   border-radius: 8px;
   padding: 8px 10px;
   cursor: pointer;
+}
+
+.dock-branch-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dock-branch-editor {
+  font-size: 10.5px;
+  color: var(--dg-ink-soft);
+  padding-left: 18px;
 }
 
 .dock-branch:hover { background: color-mix(in srgb, var(--dg-hairline) 28%, transparent); }
@@ -615,6 +628,8 @@ body {
   border-radius: 999px;
   padding: 2px 8px;
 }
+
+.edited-by { font-weight: 600; }
 
 .not-latest {
   display: inline-block;

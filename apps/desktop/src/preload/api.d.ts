@@ -52,6 +52,7 @@ export interface DocgitApi {
   listDocuments(): Promise<DocumentInfo[]>;
   addDocument(): Promise<DocumentRow | null>;
   cloudStatus(documentId: string): Promise<CloudStatus>;
+  setSharing(documentId: string, shared: boolean, myName: string | null): Promise<DocumentRow>;
   addDocumentByPath(path: string): Promise<DocumentRow>;
   connectGrist(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow>;
   syncRemote(documentId: string): Promise<CommitResult | undefined>;

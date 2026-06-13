@@ -56,13 +56,29 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
 
   const countOf = (type: DocType) => documents.filter((d) => docTypeOf(d) === type).length;
 
+  const [sharePrompt, setSharePrompt] = useState<{ docId: string; provider: string } | null>(null);
+
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
-    if (added) await onRefresh();
+    if (!added) return;
+    await onRefresh();
+    // If it lives in a cloud folder, it might be shared — offer attribution.
+    const cloud = await window.docgit.cloudStatus(added.id);
+    if (cloud.provider) setSharePrompt({ docId: added.id, provider: cloud.provider });
   };
 
   return (
     <main className="library">
+      {sharePrompt && (
+        <SharedDocDialog
+          provider={sharePrompt.provider}
+          onClose={async (shared, myName) => {
+            await window.docgit.setSharing(sharePrompt.docId, shared, myName);
+            setSharePrompt(null);
+            await onRefresh();
+          }}
+        />
+      )}
       <header className="library-header">
         <div>
           <h1>Your documents</h1>
@@ -196,6 +212,36 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         </>
       )}
     </main>
+  );
+}
+
+function SharedDocDialog(props: { provider: string; onClose: (shared: boolean, myName: string | null) => Promise<void> }) {
+  const [name, setName] = useState('');
+  return (
+    <Modal title={`This document is in ${props.provider}`} onClose={() => void props.onClose(false, null)}>
+      <p className="modal-hint">
+        If this folder is shared with other people, DocGit can show who made each change — it reads the editor's name
+        that Word/Excel/PowerPoint save inside the file. What name should it show for <strong>your</strong> edits?
+      </p>
+      <input
+        autoFocus
+        className="input"
+        placeholder="Your name (e.g. “Gibril B.”)"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && name.trim()) void props.onClose(true, name.trim());
+        }}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={() => void props.onClose(false, null)}>
+          Just me — not shared
+        </button>
+        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={() => void props.onClose(true, name.trim())}>
+          It's shared
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -23,6 +23,10 @@ export interface DocumentRow {
   name: string;
   currentBranchId: string;
   createdAt: string;
+  /** Marked as shared with other people (drives author attribution UI). */
+  shared: boolean;
+  /** The display name to attribute this user's own edits to, when the file has no embedded editor. */
+  myName: string | null;
 }
 
 export interface DocumentSummary extends DocumentRow {
@@ -239,6 +243,8 @@ export class SnapshotStore {
     // Columns added after v2 shipped — idempotent ALTERs for existing stores.
     this.ensureColumn('branches', 'forked_from_commit_id TEXT');
     this.ensureColumn('branches', 'synced_upstream_commit_id TEXT');
+    this.ensureColumn('documents', 'shared INTEGER NOT NULL DEFAULT 0');
+    this.ensureColumn('documents', 'my_name TEXT');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS remotes (
         document_id   TEXT PRIMARY KEY REFERENCES documents(id),
@@ -315,6 +321,12 @@ export class SnapshotStore {
     const path = isRemoteKey(filePath) ? filePath : resolve(filePath);
     const row = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(path) as RawDocument | undefined;
     return row ? rowToDocument(row) : undefined;
+  }
+
+  /** Record whether a document is shared and the name to attribute this user's own edits to. */
+  setSharing(documentId: string, shared: boolean, myName: string | null): DocumentRow {
+    this.db.prepare('UPDATE documents SET shared = ?, my_name = ? WHERE id = ?').run(shared ? 1 : 0, myName, documentId);
+    return this.getDocument(documentId);
   }
 
   // ── Remote connections ─────────────────────────────────────────────────
@@ -394,7 +406,9 @@ export class SnapshotStore {
       fileHash,
       fileBytes,
       message: opts.message ?? null,
-      author: opts.author ?? null,
+      // Prefer the editor embedded in the file; fall back to this user's own
+      // display name on a shared document.
+      author: opts.author ?? (doc.shared ? doc.myName : null),
     };
 
     if (
@@ -854,6 +868,8 @@ interface RawDocument {
   name: string;
   current_branch_id: string;
   created_at: string;
+  shared: number;
+  my_name: string | null;
 }
 
 interface RawBranch {
@@ -923,6 +939,8 @@ function rowToDocument(row: RawDocument): DocumentRow {
     name: row.name,
     currentBranchId: row.current_branch_id,
     createdAt: row.created_at,
+    shared: row.shared !== 0,
+    myName: row.my_name ?? null,
   };
 }
 

@@ -1,5 +1,6 @@
 import {
   diffModels,
+  extractAuthor,
   findLinkableOccurrences,
   formatValue,
   GristClient,
@@ -133,6 +134,13 @@ export class DocumentService {
       ...doc,
       remoteKind: this.store.getRemote(doc.id)?.kind ?? null,
     }));
+  }
+
+  /** Mark a document shared (or not) and set the name to attribute this user's own edits to. */
+  setSharing(documentId: string, shared: boolean, myName: string | null): DocumentRow {
+    const doc = this.store.setSharing(documentId, shared, myName);
+    this.onChanged(documentId);
+    return doc;
   }
 
   /** Track a document and snapshot its current content as the first version. */
@@ -563,14 +571,18 @@ export class DocumentService {
       this.log(`commit SKIP unparseable ${basename(path)} (${bytes.length} bytes; ${(err as Error).message})`);
       return undefined; // not a parseable document right now (partial write)
     }
+    // Who edited it: read the name the Office app embedded in the file. This
+    // works across collaborators because it travels inside the document.
+    const author = extractAuthor(bytes) ?? undefined;
     const result = this.store.commit(path, bytes, model, {
       ...(message !== undefined ? { message } : {}),
       ...(coalesceWindowMs !== undefined ? { coalesceWindowMs } : {}),
+      ...(author ? { author } : {}),
     });
     this.log(
       `commit ${basename(path)} → ${result.created ? 'CAPTURED' : 'no-change'} ` +
         `head=${result.commit.id.slice(0, 8)} branch=${result.commit.branchId.slice(0, 8)} ` +
-        `content=${result.commit.modelHash.slice(0, 8)} msg="${result.commit.message ?? ''}"`,
+        `content=${result.commit.modelHash.slice(0, 8)} author="${result.commit.author ?? ''}" msg="${result.commit.message ?? ''}"`,
     );
     return result;
   }

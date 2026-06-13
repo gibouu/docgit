@@ -17,6 +17,7 @@ export { parseDocx } from './adapters/word/parse.js';
 export { parseXlsx } from './adapters/excel/parse.js';
 export { parsePptx } from './adapters/powerpoint/parse.js';
 export { parseDocument, SUPPORTED_EXTENSIONS } from './adapters/parse.js';
+export { extractAuthor } from './adapters/metadata.js';
 export { GristClient, type GristConfig } from './adapters/grist/client.js';
 export {
   isRemoteKey,
