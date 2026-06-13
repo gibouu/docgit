@@ -149,6 +149,33 @@ export class SnapshotStore {
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA foreign_keys = ON');
     this.migrate();
+    this.backfillBranchStarts();
+  }
+
+  /**
+   * One-time fix for branches created before branches got their own starting
+   * commit: any branch whose head still belongs to another branch (no commit
+   * of its own) gets a starting commit forked from that head. Makes such
+   * branches visible as their own line and stops their label from being drawn
+   * on top of the parent's node. Idempotent — branches with their own commits
+   * are skipped.
+   */
+  private backfillBranchStarts(): void {
+    const branches = this.db
+      .prepare('SELECT id, document_id, name, head_commit_id FROM branches WHERE head_commit_id IS NOT NULL')
+      .all() as unknown as { id: string; document_id: string; name: string; head_commit_id: string }[];
+    for (const b of branches) {
+      const own = this.db.prepare('SELECT COUNT(*) AS n FROM commits WHERE branch_id = ?').get(b.id) as { n: number };
+      if (Number(own.n) > 0) continue;
+      const from = this.getCommit(b.head_commit_id);
+      this.insertCommit(b.document_id, b.id, from.id, {
+        modelHash: from.modelHash,
+        fileHash: from.fileHash,
+        message: `Started “${b.name}”`,
+        author: null,
+        createdAt: from.createdAt, // sit right next to the fork point, not "now"
+      });
+    }
   }
 
   private migrate(): void {
@@ -465,9 +492,10 @@ export class SnapshotStore {
       fileBytes?: Uint8Array;
       message: string | null;
       author: string | null;
+      createdAt?: string;
     },
   ): CommitRow {
-    const createdAt = nowIso();
+    const createdAt = data.createdAt ?? nowIso();
     const id = sha256(JSON.stringify([documentId, branchId, parentId, data.modelHash, data.fileHash, data.message, createdAt]));
     this.db.exec('BEGIN');
     try {
