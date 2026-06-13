@@ -36,6 +36,15 @@ function versionTitle(commit: { message: string | null; createdAt: string }): st
   return commit.message!;
 }
 
+/** "Open in Word / Excel / PowerPoint / Grist" for the live tracked document. */
+function openAppLabel(doc: DocumentInfo): string {
+  if (doc.remoteKind === 'grist') return 'Open in Grist';
+  const n = doc.name.toLowerCase();
+  if (n.endsWith('.xlsx')) return 'Open in Excel';
+  if (n.endsWith('.pptx')) return 'Open in PowerPoint';
+  return 'Open in Word';
+}
+
 export function DocumentView({ document: doc, onBack, initialSelectedId }: DocumentViewProps) {
   const [graph, setGraph] = useState<DocumentGraph | null>(null);
   const [statuses, setStatuses] = useState<{ branchId: string; status: UpstreamStatus | null }[]>([]);
@@ -194,7 +203,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             </button>
           )}
           <button type="button" className="btn btn-primary" onClick={() => void window.docgit.openDocument(doc.id)}>
-            {doc.remoteKind ? 'Open in Grist' : 'Open in Word'}
+            {openAppLabel(doc)}
           </button>
         </div>
       </header>
@@ -280,6 +289,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                 commit={lastSelected}
                 status={lastSelected ? statusOf(lastSelected.branchId) : null}
                 readOnly={!!doc.remoteKind}
+                onOpenLive={() => void window.docgit.openDocument(doc.id)}
                 onOpenCopy={(c) => void window.docgit.openVersionCopy(c.id)}
                 onBranch={(c) => setDialog({ kind: 'branch', from: c })}
                 onRestore={(c) => void askRestore(c)}
@@ -433,6 +443,7 @@ function DetailsTab(props: {
   commit: CommitRow | null;
   status: UpstreamStatus | null;
   readOnly: boolean;
+  onOpenLive: () => void;
   onOpenCopy: (c: CommitRow) => void;
   onBranch: (c: CommitRow) => void;
   onRestore: (c: CommitRow) => void;
@@ -509,24 +520,39 @@ function DetailsTab(props: {
                 Work on this branch
               </button>
             )}
-            {!readOnly && isCurrentBranch && !isWorkingHead && (
+            {isWorkingHead ? (
+              // This version IS the live document — open the real file so edits
+              // are tracked, exactly like the header button.
               <button
                 type="button"
                 className="btn btn-primary"
-                title="Make this version the latest on this branch — what Word will open"
-                onClick={() => props.onRestore(commit)}
+                title="Open the live document — your edits are saved and tracked"
+                onClick={props.onOpenLive}
               >
-                Restore this version
+                {openAppLabel(props.doc)}
               </button>
+            ) : (
+              <>
+                {!readOnly && isCurrentBranch && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    title="Make this version the latest, then edit it live in the app"
+                    onClick={() => props.onRestore(commit)}
+                  >
+                    Restore &amp; edit
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => props.onOpenCopy(commit)}
+                  title="Opens a separate copy of this old version just to look at it — changes to that copy are NOT saved to your document or its history"
+                >
+                  View a copy
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              className="btn"
-              onClick={() => props.onOpenCopy(commit)}
-              title="Open a read-only copy of exactly this version in the Office app"
-            >
-              Open this version
-            </button>
             {!readOnly && (
               <button type="button" className="btn" onClick={() => props.onBranch(commit)}>
                 Branch from here
