@@ -75,6 +75,14 @@ body {
 
 .btn-primary:hover { background: color-mix(in srgb, var(--dg-accent) 88%, black); border-color: var(--dg-accent); }
 
+.btn-danger {
+  background: var(--dg-danger);
+  border-color: var(--dg-danger);
+  color: #fff;
+}
+
+.btn-danger:hover { background: color-mix(in srgb, var(--dg-danger) 88%, black); border-color: var(--dg-danger); }
+
 .btn-ghost {
   background: transparent;
   border-color: transparent;
@@ -357,6 +365,8 @@ body {
 .row-menu button:hover {
   background: var(--dg-paper);
 }
+
+.row-menu-danger { color: var(--dg-danger); }
 
 .doc-row {
   display: flex;
@@ -1197,6 +1207,17 @@ body {
   border-radius: 8px;
   font-size: 12.5px;
   margin: 8px 0 0;
+}
+
+.modal-warn { color: #b54708; font-size: 0.85em; margin: 8px 0 0; }
+
+.modal-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--dg-ink);
 }
 
 .modal-actions {

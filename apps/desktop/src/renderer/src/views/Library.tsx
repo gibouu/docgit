@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DocumentInfo } from '../../../preload/api';
 import { Modal } from '../components/Modal.js';
 
@@ -59,6 +59,25 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
   const [sharePrompt, setSharePrompt] = useState<{ docId: string; provider: string } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null); // doc id whose ⋯ menu is open
   const [renaming, setRenaming] = useState<DocumentInfo | null>(null);
+  const [deleting, setDeleting] = useState<DocumentInfo | null>(null);
+
+  // Dismiss the open row menu on outside-click or Escape, like the rest of the app.
+  useEffect(() => {
+    if (menuFor === null) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.row-menu') && !target.closest('.doc-row-menu')) setMenuFor(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuFor(null);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuFor]);
 
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
@@ -109,6 +128,7 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         </div>
       )}
       {renaming && <RenameDocDialog doc={renaming} onClose={() => setRenaming(null)} onDone={onRefresh} />}
+      {deleting && <DeleteDocDialog doc={deleting} onClose={() => setDeleting(null)} onDone={onRefresh} />}
       {sharePrompt && (
         <SharedDocDialog
           provider={sharePrompt.provider}
@@ -263,7 +283,16 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
                         >
                           Rename…
                         </button>
-                        {/* Delete… added in PR D */}
+                        <button
+                          type="button"
+                          className="row-menu-danger"
+                          onClick={() => {
+                            setDeleting(doc);
+                            setMenuFor(null);
+                          }}
+                        >
+                          Delete…
+                        </button>
                       </div>
                     )}
                   </li>
@@ -327,6 +356,58 @@ function RenameDocDialog(props: { doc: DocumentInfo; onClose: () => void; onDone
           onClick={() => void submit()}
         >
           {busy ? 'Renaming…' : 'Rename'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function DeleteDocDialog(props: { doc: DocumentInfo; onClose: () => void; onDone: () => Promise<void> }) {
+  const [trashFile, setTrashFile] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await window.docgit.deleteDocument(props.doc.id, { trashFile });
+      await props.onDone();
+      props.onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^.*Error[^:]*:\s*/, '') : String(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Remove “${props.doc.name}”?`} onClose={props.onClose}>
+      <p className="modal-hint">
+        This removes the document and its DocGit history. By default your file on disk is left alone.
+      </p>
+      <label className="modal-check">
+        <input type="checkbox" checked={trashFile} onChange={(e) => setTrashFile(e.target.checked)} />
+        Also move the original file to the Trash
+      </label>
+      {trashFile && props.doc.shared && (
+        <p className="modal-warn">This file is in a shared cloud folder — trashing it may remove it for others too.</p>
+      )}
+      {error && (
+        <p className="modal-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={`btn ${trashFile ? 'btn-danger' : 'btn-primary'}`}
+          disabled={busy}
+          onClick={() => void submit()}
+        >
+          {busy ? 'Removing…' : trashFile ? 'Remove & move file to Trash' : 'Remove from DocGit'}
         </button>
       </div>
     </Modal>
