@@ -69,4 +69,14 @@ describe('SnapshotStore', () => {
     expect(store.resolve(first.commit.id.slice(0, 8)).id).toBe(first.commit.id);
     expect(() => store.resolve('ffffffff')).toThrow(/No commit/);
   });
+
+  it('renames a document path and display name without changing its id', () => {
+    const doc = store.addDocument('/Users/test/old.docx');
+    const updated = store.renameDocumentPath(doc.id, '/Users/test/new.docx', 'new.docx');
+    expect(updated.id).toBe(doc.id); // id (and FK references) stay stable
+    expect(updated.path).toBe('/Users/test/new.docx');
+    expect(updated.name).toBe('new.docx');
+    // Branches/commits still resolve against the same id.
+    expect(store.listBranches(doc.id)).toHaveLength(1);
+  });
 });

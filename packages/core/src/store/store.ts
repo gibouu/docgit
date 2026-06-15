@@ -320,6 +320,18 @@ export class SnapshotStore {
     return rowToDocument(row);
   }
 
+  /**
+   * Point a tracked document at a new on-disk path + display name. The document
+   * id is derived from the original path but is the PK referenced by branches
+   * and commits, so it is deliberately NOT recomputed — only path/name change.
+   * The filesystem move itself is the caller's responsibility (service layer).
+   */
+  renameDocumentPath(documentId: string, newPath: string, newName: string): DocumentRow {
+    const path = resolve(newPath);
+    this.db.prepare('UPDATE documents SET path = ?, name = ? WHERE id = ?').run(path, newName, documentId);
+    return this.getDocument(documentId);
+  }
+
   getDocumentByPath(filePath: string): DocumentRow | undefined {
     const path = isRemoteKey(filePath) ? filePath : resolve(filePath);
     const row = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(path) as RawDocument | undefined;
