@@ -681,6 +681,11 @@ export class SnapshotStore {
     return this.getBranch(branchId);
   }
 
+  setBranchReason(branchId: string, reason: string): BranchRow {
+    this.db.prepare('UPDATE branches SET reason = ? WHERE id = ?').run(reason.trim() || null, branchId);
+    return this.getBranch(branchId);
+  }
+
   setBranchArchived(branchId: string, archived: boolean): BranchRow {
     const branch = this.getBranch(branchId);
     const doc = this.getDocument(branch.documentId);

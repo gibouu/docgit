@@ -310,4 +310,13 @@ describe('SnapshotStore — branches, sends, restore', () => {
     const plain = store.createBranch(doc.id, 'Experiment', base.id);
     expect(plain.reason).toBeNull();
   });
+
+  it('updates a branch reason after creation', () => {
+    const base = snapshot(['v1'], 'base').commit;
+    const doc = store.getDocument(base.documentId);
+    const branch = store.createBranch(doc.id, 'Variant', base.id);
+    const updated = store.setBranchReason(branch.id, 'Client revision');
+    expect(updated.reason).toBe('Client revision');
+    expect(store.setBranchReason(branch.id, '').reason).toBeNull();
+  });
 });
