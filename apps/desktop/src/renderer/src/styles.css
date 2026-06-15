@@ -813,8 +813,6 @@ body {
   gap: 8px;
 }
 
-.version-header h2 { margin: 0 0 10px; }
-
 /* shared overflow menu (version + branch) — reuses .row-menu for the popover */
 .overflow-menu-wrap {
   position: relative;
@@ -869,7 +867,10 @@ body {
   padding: 4px 10px 8px;
 }
 
-.swatch {
+/* Scoped under .overflow-menu to outrank `.row-menu button` (which sets
+   display:block/width:100%/padding) so swatches stay 18px circles. */
+.overflow-menu .swatch {
+  display: inline-block;
   width: 18px;
   height: 18px;
   padding: 0;
@@ -878,7 +879,7 @@ body {
   cursor: pointer;
 }
 
-.swatch.is-active {
+.overflow-menu .swatch.is-active {
   outline: 2px solid var(--dg-ink);
   outline-offset: 2px;
 }

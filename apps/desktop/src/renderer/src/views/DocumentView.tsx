@@ -616,7 +616,12 @@ function DetailsTab(props: {
                     Reason{branch.reason ? `: ${branch.reason}` : '…'}
                   </button>
                   <div className="overflow-menu-section">Colour</div>
-                  <div className="swatch-row" role="group" aria-label="Branch colour">
+                  <div
+                    className="swatch-row"
+                    role="group"
+                    aria-label="Branch colour"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {SWATCHES.map((c) => (
                       <button
                         type="button"
