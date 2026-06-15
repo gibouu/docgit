@@ -47,6 +47,17 @@ export interface CreateLinkPayload {
   occurrence: number;
 }
 
+export interface UpdateState {
+  status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'disabled';
+  version?: string;
+  percent?: number;
+}
+
+export interface AppSettings {
+  autoUpdate: boolean;
+  seenUpdateNote: boolean;
+}
+
 /** Renderer-side view of the preload bridge, with IPC-resolved types. */
 export interface DocgitApi {
   listDocuments(): Promise<DocumentInfo[]>;
@@ -98,6 +109,14 @@ export interface DocgitApi {
   deleteLink(documentId: string, linkId: string): Promise<void>;
 
   onChanged(callback: (documentId: string) => void): () => void;
+
+  updateState(): Promise<UpdateState>;
+  checkForUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
+  updateSettings(): Promise<AppSettings>;
+  setAutoUpdate(enabled: boolean): Promise<AppSettings>;
+  markUpdateNoteSeen(): Promise<AppSettings>;
+  onUpdate(callback: (state: UpdateState) => void): () => void;
 }
 
 declare global {

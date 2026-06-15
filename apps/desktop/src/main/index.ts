@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectCloudProvider, DocumentService } from './service.js';
 import { Settings } from './settings.js';
+import { initUpdater, getUpdateState, checkForUpdatesNow, quitAndInstall, type UpdateState } from './updater.js';
 
 // One identity everywhere (dev and packaged): data lives under
 // ~/Library/Application Support/DocGit.
@@ -28,9 +29,14 @@ function migrateLegacyData(): void {
 
 let service: DocumentService | null = null;
 let win: BrowserWindow | null = null;
+let settings: Settings;
 
 function notifyRenderer(documentId: string): void {
   win?.webContents.send('docgit:changed', documentId);
+}
+
+function sendUpdateState(state: UpdateState): void {
+  win?.webContents.send('docgit:update', state);
 }
 
 function createWindow(): void {
@@ -151,6 +157,20 @@ function registerIpc(svc: DocumentService): void {
   );
   ipcMain.handle('links:refresh', (_e, documentId: string) => svc.refreshLinks(documentId));
   ipcMain.handle('links:delete', (_e, documentId: string, linkId: string) => svc.deleteLink(documentId, linkId));
+
+  ipcMain.handle('update:getState', () => getUpdateState());
+  ipcMain.handle('update:check', () => checkForUpdatesNow());
+  ipcMain.handle('update:install', () => quitAndInstall());
+  ipcMain.handle('update:settings', () => (settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false }));
+  ipcMain.handle('update:setEnabled', (_e, enabled: boolean) => {
+    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false };
+    const next = settings.set('autoUpdate', enabled);
+    if (enabled) checkForUpdatesNow();
+    return next;
+  });
+  ipcMain.handle('update:markNoteSeen', () =>
+    settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true },
+  );
 }
 
 /**
@@ -575,6 +595,9 @@ void app.whenReady().then(() => {
   service = new DocumentService(join(app.getPath('userData'), 'docgit.db'), notifyRenderer);
   registerIpc(service);
   createWindow();
+
+  settings = new Settings(app.getPath('userData'));
+  initUpdater(sendUpdateState, join(app.getPath('userData'), 'activity.log'), settings.get().autoUpdate);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
