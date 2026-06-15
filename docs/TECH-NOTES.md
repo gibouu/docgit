@@ -143,3 +143,9 @@ Planned fix, in order:
   fail with a generic filesystem error. Because the move is attempted before
   the database write, nothing changes when this happens — the document keeps
   its old name. Re-download the file (open it once) and try again.
+- **Double-fault recovery (rare).** If the database write fails *and* the
+  rollback rename also fails, the file is stranded at its new path while the
+  record still holds the old one. DocGit re-points its file watcher at the
+  file's actual location so the document is never left unwatched, then surfaces
+  the original error. The library label may briefly disagree with the on-disk
+  name until the next successful action; re-adding the file reconciles it.

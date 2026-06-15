@@ -240,8 +240,16 @@ export class DocumentService {
     try {
       updated = this.store.renameDocumentPath(documentId, newPath, `${base}${ext}`);
     } catch (err) {
-      renameSync(newPath, doc.path); // roll the file back so disk + DocGit stay consistent
-      this.watch(doc);
+      // The DB write failed; try to roll the file back so disk matches the record
+      // DocGit still holds. If the rollback ALSO fails (double fault), the file is
+      // stranded at newPath — re-watch it there so the document is never left
+      // unwatched, then surface the original error. (See TECH-NOTES.)
+      try {
+        renameSync(newPath, doc.path);
+        this.watch(doc);
+      } catch {
+        this.watch(existsSync(newPath) ? { ...doc, path: newPath } : doc);
+      }
       throw err;
     }
     this.watch(updated);
