@@ -24,7 +24,7 @@ import {
 } from '@docgit/core';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join } from 'node:path';
 
@@ -207,6 +207,46 @@ export class DocumentService {
   /** Track several files at once (drag-and-drop). Returns the resulting documents. */
   addDocuments(paths: string[]): DocumentRow[] {
     return paths.map((p) => this.addDocument(p));
+  }
+
+  /**
+   * Rename a tracked document's base name on disk AND in DocGit so the two never
+   * drift. Extension is preserved; the doc id (and its history) is unchanged.
+   * Throws a user-facing message on collision or a locked/cloud file.
+   */
+  renameDocument(documentId: string, newBaseName: string): DocumentRow {
+    const doc = this.store.getDocument(documentId);
+    if (isRemoteKey(doc.path)) throw new Error('Remote documents cannot be renamed here.');
+    const dir = dirname(doc.path);
+    const ext = extname(doc.path);
+    const base = newBaseName.trim().replace(/\.[^.]+$/, ''); // ignore any extension the user typed
+    if (!base) throw new Error('Please enter a name.');
+    const newPath = join(dir, `${base}${ext}`);
+    if (newPath === doc.path) return doc;
+    if (existsSync(newPath)) throw new Error(`A file called “${base}${ext}” already exists in this folder.`);
+
+    this.unwatch(documentId);
+    try {
+      renameSync(doc.path, newPath); // risky op first
+    } catch (err) {
+      this.watch(doc); // restore watcher on the original path
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+        throw new Error('Word may have this file open — close it and try again.');
+      }
+      throw new Error(`Couldn’t rename the file on disk (${code ?? 'unknown error'}). Nothing was changed.`);
+    }
+    let updated: DocumentRow;
+    try {
+      updated = this.store.renameDocumentPath(documentId, newPath, `${base}${ext}`);
+    } catch (err) {
+      renameSync(newPath, doc.path); // roll the file back so disk + DocGit stay consistent
+      this.watch(doc);
+      throw err;
+    }
+    this.watch(updated);
+    this.onChanged(documentId);
+    return updated;
   }
 
   /**
@@ -648,6 +688,14 @@ export class DocumentService {
     this.watchers.set(doc.id, watcher);
     this.watchersReady.push(new Promise((resolve) => watcher.once('ready', resolve)));
     this.log(`watching ${name} in ${dir}`);
+  }
+
+  private unwatch(documentId: string): void {
+    const w = this.watchers.get(documentId);
+    if (w) {
+      void w.close();
+      this.watchers.delete(documentId);
+    }
   }
 
   /** Resolves once all watchers finished their initial scan — saves before this can be missed. */
