@@ -149,3 +149,20 @@ Planned fix, in order:
   file's actual location so the document is never left unwatched, then surfaces
   the original error. The library label may briefly disagree with the on-disk
   name until the next successful action; re-adding the file reconciles it.
+
+## 7. Delete
+
+- **Delete is DocGit-first; the file is opt-in.** Removing a document always
+  deletes its DocGit history (cascade across sends/links/commits/branches/
+  remotes in one transaction) and stops watching it. The real file on disk is
+  only touched when "Also move the original file to the Trash" is checked, and
+  then via `shell.trashItem` (recoverable from the Finder Trash), never a
+  permanent unlink.
+- **Trash-first ordering.** When trashing, the file is moved to the Trash
+  *before* any DocGit state changes, so a failed trash (locked/missing file)
+  leaves the document fully tracked and watched. The only residual window —
+  near-pathological on a local SQLite store — is the reverse: the trash
+  succeeds and the database delete then fails, leaving the file recoverable in
+  the Trash while the document stays tracked (the watcher will report it
+  missing). This fails in the safe direction; re-adding or restoring the file
+  reconciles it.
