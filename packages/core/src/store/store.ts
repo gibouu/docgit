@@ -332,6 +332,25 @@ export class SnapshotStore {
     return this.getDocument(documentId);
   }
 
+  /** Permanently remove a document and all its DocGit history. The file on disk is untouched. */
+  deleteDocument(documentId: string): void {
+    this.db.exec('BEGIN');
+    try {
+      this.db
+        .prepare('DELETE FROM sends WHERE commit_id IN (SELECT id FROM commits WHERE document_id = ?)')
+        .run(documentId);
+      this.db.prepare('DELETE FROM links WHERE doc_document_id = ? OR source_document_id = ?').run(documentId, documentId);
+      this.db.prepare('DELETE FROM commits WHERE document_id = ?').run(documentId);
+      this.db.prepare('DELETE FROM branches WHERE document_id = ?').run(documentId);
+      this.db.prepare('DELETE FROM remotes WHERE document_id = ?').run(documentId);
+      this.db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
   getDocumentByPath(filePath: string): DocumentRow | undefined {
     const path = isRemoteKey(filePath) ? filePath : resolve(filePath);
     const row = this.db.prepare('SELECT * FROM documents WHERE path = ?').get(path) as RawDocument | undefined;

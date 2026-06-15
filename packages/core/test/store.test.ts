@@ -79,4 +79,11 @@ describe('SnapshotStore', () => {
     // Branches/commits still resolve against the same id.
     expect(store.listBranches(doc.id)).toHaveLength(1);
   });
+
+  it('deletes a document and all its branches/commits', () => {
+    const doc = store.addDocument('/Users/test/gone.docx');
+    store.deleteDocument(doc.id);
+    expect(() => store.getDocument(doc.id)).toThrow();
+    expect(store.listDocuments().some((d) => d.id === doc.id)).toBe(false);
+  });
 });
