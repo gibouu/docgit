@@ -43,6 +43,8 @@ const api = {
   addDocumentByPaths: (paths: string[]) => ipcRenderer.invoke('docs:addPaths', paths),
   renameDocument: (documentId: string, newBaseName: string) =>
     ipcRenderer.invoke('docs:rename', documentId, newBaseName),
+  deleteDocument: (documentId: string, opts: { trashFile: boolean }) =>
+    ipcRenderer.invoke('docs:delete', documentId, opts),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
   syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),

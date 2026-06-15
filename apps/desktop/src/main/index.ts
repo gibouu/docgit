@@ -81,6 +81,9 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('docs:rename', (_e, documentId: string, newBaseName: string) =>
     svc.renameDocument(documentId, newBaseName),
   );
+  ipcMain.handle('docs:delete', (_e, documentId: string, opts: { trashFile: boolean }) =>
+    svc.deleteDocument(documentId, opts),
+  );
   ipcMain.handle('docs:open', (_e, documentId: string) => {
     const target = svc.openTarget(documentId);
     return target.kind === 'url' ? shell.openExternal(target.target) : shell.openPath(target.target);
