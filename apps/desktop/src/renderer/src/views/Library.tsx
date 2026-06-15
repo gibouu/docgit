@@ -67,8 +67,45 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
     if (cloud.provider) setSharePrompt({ docId: added.id, provider: cloud.provider });
   };
 
+  const SUPPORTED = ['.docx', '.xlsx', '.pptx'];
+  const [dragOver, setDragOver] = useState(false);
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const paths = Array.from(e.dataTransfer.files)
+      .map((f) => window.docgit.pathForFile(f))
+      .filter((p) => SUPPORTED.some((ext) => p.toLowerCase().endsWith(ext)));
+    if (paths.length === 0) return; // silently ignore unsupported drops
+    const added = await window.docgit.addDocumentByPaths(paths);
+    await onRefresh();
+    // Offer attribution for the first cloud-resident add, mirroring addDocument().
+    for (const doc of added) {
+      const cloud = await window.docgit.cloudStatus(doc.id);
+      if (cloud.provider) {
+        setSharePrompt({ docId: doc.id, provider: cloud.provider });
+        break;
+      }
+    }
+  };
+
   return (
-    <main className="library">
+    <main
+      className={`library${dragOver ? ' is-dragover' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={(e) => void onDrop(e)}
+    >
+      {dragOver && (
+        <div className="library-dropzone">
+          <div className="library-dropzone-inner">Drop Word, Excel or PowerPoint files to add</div>
+        </div>
+      )}
       {sharePrompt && (
         <SharedDocDialog
           provider={sharePrompt.provider}
