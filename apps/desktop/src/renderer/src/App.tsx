@@ -3,6 +3,7 @@ import type { DocumentInfo } from '../../preload/api';
 import { Library } from './views/Library.js';
 import { DocumentView } from './views/DocumentView.js';
 import { SentHistory } from './views/SentHistory.js';
+import { UpdateBanner } from './components/UpdateBanner.js';
 
 type Route =
   | { kind: 'library' }
@@ -26,6 +27,7 @@ export function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
       <div className="titlebar" />
       {route.kind === 'doc' && openDoc ? (
         <DocumentView
