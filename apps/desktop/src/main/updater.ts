@@ -1,5 +1,5 @@
 import { app } from 'electron';
-import electronUpdater from 'electron-updater';
+import electronUpdater, { type Logger } from 'electron-updater';
 import { appendFileSync } from 'node:fs';
 
 const { autoUpdater } = electronUpdater;
@@ -34,7 +34,8 @@ export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): v
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.logger = { info: log, warn: log, error: log, debug: () => {} } as never;
+  const logger: Logger = { info: log, warn: log, error: log, debug: () => {} };
+  autoUpdater.logger = logger;
 
   const set = (next: UpdateState) => {
     state = next;
@@ -59,7 +60,11 @@ export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): v
   else set({ status: 'disabled' });
 }
 
-/** Manual check (the "Check now" button) — ignores the enabled flag. */
+/**
+ * Manual check (the "Check now" button) — ignores the enabled flag.
+ * Safe to call while a check is in flight: electron-updater coalesces
+ * concurrent checks onto the same in-flight promise.
+ */
 export function checkForUpdatesNow(): void {
   if (!app.isPackaged) return;
   void autoUpdater.checkForUpdates();
@@ -67,5 +72,6 @@ export function checkForUpdatesNow(): void {
 
 /** Quit and install a downloaded update. */
 export function quitAndInstall(): void {
+  if (!app.isPackaged) return; // self-guard: no install path exists unpackaged
   autoUpdater.quitAndInstall();
 }
