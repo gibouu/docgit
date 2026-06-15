@@ -16,6 +16,7 @@ mac:
   target:
     - target: dir
     - target: dmg
+    - target: zip
   # Signing is automatic when a "Developer ID Application" certificate is
   # available (login keychain locally, CSC_LINK/CSC_KEY_PASSWORD env in CI);
   # without one, electron-builder warns and produces an unsigned build.
@@ -24,5 +25,9 @@ mac:
   # Notarization runs when APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD /
   # APPLE_TEAM_ID are set in the environment; skipped otherwise.
   notarize: true
+publish:
+  provider: github
+  owner: gibouu
+  repo: docgit
 dmg:
   title: DocGit

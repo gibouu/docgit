@@ -35,11 +35,14 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      - name: Create release with DMG
+      - name: Create release with DMG + update feed
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" \
             --title "DocGit ${GITHUB_REF_NAME}" \
             --generate-notes \
-            apps/desktop/release/*.dmg
+            apps/desktop/release/*.dmg \
+            apps/desktop/release/*.zip \
+            apps/desktop/release/*.zip.blockmap \
+            apps/desktop/release/latest-mac.yml
