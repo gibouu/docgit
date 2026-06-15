@@ -56,6 +56,7 @@ export interface DocgitApi {
   addDocumentByPath(path: string): Promise<DocumentRow>;
   pathForFile(file: File): string;
   addDocumentByPaths(paths: string[]): Promise<DocumentRow[]>;
+  renameDocument(documentId: string, newBaseName: string): Promise<DocumentRow>;
   connectGrist(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow>;
   syncRemote(documentId: string): Promise<CommitResult | undefined>;
   openDocument(documentId: string): Promise<string>;

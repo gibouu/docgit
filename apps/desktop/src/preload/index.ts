@@ -41,6 +41,8 @@ const api = {
   addDocumentByPath: (path: string) => ipcRenderer.invoke('docs:addPath', path),
   pathForFile: (file: File) => webUtils.getPathForFile(file),
   addDocumentByPaths: (paths: string[]) => ipcRenderer.invoke('docs:addPaths', paths),
+  renameDocument: (documentId: string, newBaseName: string) =>
+    ipcRenderer.invoke('docs:rename', documentId, newBaseName),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
   syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),
