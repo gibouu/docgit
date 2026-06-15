@@ -8,16 +8,19 @@ DocGit gives professionals who iterate on high-stakes documents (contracts, busi
 
 Grab the latest **[DocGit.app DMG from Releases](https://github.com/gibouu/docgit/releases/latest)** (Apple silicon). The app is **signed and notarized by Apple** — open the DMG, drag DocGit to Applications, and double-click. No security prompts, no right-click ritual.
 
+Once installed, **DocGit updates itself** — no need to come back and re-download.
+
 New here? Read the **[one-page tutorial](docs/TUTORIAL.md)**.
 
-## Privacy: local only, no exceptions
+## Privacy: local only
 
-DocGit transfers nothing and keeps nothing outside your Mac:
+DocGit keeps your documents and their history entirely on your Mac:
 
-- **No servers, no accounts, no telemetry, no analytics, no crash reporting.** The app makes zero network calls of its own.
+- **No servers, no accounts, no telemetry, no analytics, no crash reporting.** Your documents never leave the machine.
 - **Your documents and their entire version history live in one place:** `~/Library/Application Support/DocGit/` on your machine. Delete that folder and the app's data is gone.
-- The **only** network activity ever performed is to servers **you explicitly connect** (e.g. your own Grist instance via "Connect Grist…"), and that connection is read-only.
-- Fonts and all assets are bundled — nothing is fetched at runtime.
+- **One network exception: the update check.** On launch, DocGit asks GitHub Releases whether a newer version exists and, if so, downloads the notarized build in the background. It's on by default and switchable off under **⚙ Settings** — nothing about your documents is ever sent, and no other host is contacted.
+- The only other network activity is to servers **you explicitly connect** (e.g. your own Grist instance via "Connect Grist…"), and that connection is read-only.
+- Fonts and all assets are bundled — nothing else is fetched at runtime.
 
 This is verifiable in the source: the codebase is open under the [MIT license](LICENSE).
 
