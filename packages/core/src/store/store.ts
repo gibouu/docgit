@@ -48,6 +48,8 @@ export interface BranchRow {
   forkedFromCommitId: string | null;
   /** Upstream commit this branch last declared itself caught up with. */
   syncedUpstreamCommitId: string | null;
+  /** Optional human reason this branch exists (e.g. "Translation"). */
+  reason: string | null;
 }
 
 /** How far a branch trails the branch it forked from. */
@@ -245,6 +247,7 @@ export class SnapshotStore {
     this.ensureColumn('branches', 'synced_upstream_commit_id TEXT');
     this.ensureColumn('documents', 'shared INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'my_name TEXT');
+    this.ensureColumn('branches', 'reason TEXT');
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS remotes (
         document_id   TEXT PRIMARY KEY REFERENCES documents(id),
@@ -613,7 +616,7 @@ export class SnapshotStore {
   }
 
   /** Branch off any commit; the new branch becomes the document's current branch. */
-  createBranch(documentId: string, name: string, fromCommitId: string, color?: string): BranchRow {
+  createBranch(documentId: string, name: string, fromCommitId: string, color?: string, reason?: string): BranchRow {
     const doc = this.getDocument(documentId);
     const from = this.getCommit(fromCommitId);
     if (from.documentId !== doc.id) throw new Error('Cannot branch from another document');
@@ -624,8 +627,8 @@ export class SnapshotStore {
     try {
       this.db
         .prepare(
-          `INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at, forked_from_commit_id, synced_upstream_commit_id)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          `INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at, forked_from_commit_id, synced_upstream_commit_id, reason)
+           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
         )
         .run(
           id,
@@ -637,6 +640,7 @@ export class SnapshotStore {
           nowIso(),
           fromCommitId,
           fromCommitId,
+          reason ?? null,
         );
       this.db.prepare('UPDATE documents SET current_branch_id = ? WHERE id = ?').run(id, documentId);
       this.db.exec('COMMIT');
@@ -883,6 +887,7 @@ interface RawBranch {
   created_at: string;
   forked_from_commit_id: string | null;
   synced_upstream_commit_id: string | null;
+  reason: string | null;
 }
 
 interface RawCommit {
@@ -956,6 +961,7 @@ function rowToBranch(row: RawBranch): BranchRow {
     createdAt: row.created_at,
     forkedFromCommitId: row.forked_from_commit_id ?? null,
     syncedUpstreamCommitId: row.synced_upstream_commit_id ?? null,
+    reason: row.reason ?? null,
   };
 }
 

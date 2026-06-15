@@ -300,4 +300,14 @@ describe('SnapshotStore — branches, sends, restore', () => {
     expect(docs[0]).toMatchObject({ name: 'cv.docx', versionCount: 2, branchCount: 1 });
     expect(docs[0]!.lastVersionAt).toBeTruthy();
   });
+
+  it('persists an optional reason on a branch', () => {
+    const base = snapshot(['v1'], 'base').commit;
+    const doc = store.getDocument(base.documentId);
+    const branch = store.createBranch(doc.id, 'FR translation', base.id, undefined, 'Translation');
+    expect(branch.reason).toBe('Translation');
+    // Reason is optional and defaults to null.
+    const plain = store.createBranch(doc.id, 'Experiment', base.id);
+    expect(plain.reason).toBeNull();
+  });
 });
