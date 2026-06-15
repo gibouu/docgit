@@ -18,6 +18,7 @@ type DialogState =
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
   | { kind: 'renameVersion'; commit: CommitRow }
   | { kind: 'renameBranch'; branch: BranchRow }
+  | { kind: 'branchReason'; branch: BranchRow }
   | { kind: 'cloudSwitch'; branchId: string; branchName: string }
   | null;
 
@@ -302,6 +303,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                 onSwitchTo={requestSwitch}
                 onRenameVersion={(c) => setDialog({ kind: 'renameVersion', commit: c })}
                 onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+                onSetReason={(b) => setDialog({ kind: 'branchReason', branch: b })}
                 onRecolor={(b, color) => void window.docgit.setBranchColor(doc.id, b.id, color)}
                 onArchive={(b, archived) => void window.docgit.setBranchArchived(doc.id, b.id, archived)}
                 onShowUpstream={showUpstreamChanges}
@@ -381,6 +383,16 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
           }}
         />
       )}
+      {dialog?.kind === 'branchReason' && (
+        <ReasonDialog
+          branch={dialog.branch}
+          onClose={() => setDialog(null)}
+          onSubmit={async (reason) => {
+            await window.docgit.setBranchReason(doc.id, dialog.branch.id, reason);
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
@@ -456,6 +468,7 @@ function DetailsTab(props: {
   onSwitchTo: (branchId: string) => void;
   onRenameVersion: (c: CommitRow) => void;
   onRenameBranch: (b: BranchRow) => void;
+  onSetReason: (b: BranchRow) => void;
   onRecolor: (b: BranchRow, color: string) => void;
   onArchive: (b: BranchRow, archived: boolean) => void;
   onShowUpstream: (s: UpstreamStatus) => void;
@@ -592,23 +605,33 @@ function DetailsTab(props: {
                 </>
               )}
               {!readOnly && (
-                <button type="button" className="btn btn-mini" onClick={() => props.onRenameBranch(branch)}>
-                  Rename branch
-                </button>
-              )}
-              {!readOnly && (
-                <select className="branch-color-pick" value={branch.color} title="Branch color" onChange={(e) => props.onRecolor(branch, e.target.value)}>
-                  {[...new Set([branch.color, ...SWATCHES])].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {!readOnly && !isCurrentBranch && branch.id !== trunk?.id && (
-                <button type="button" className="btn btn-mini" onClick={() => props.onArchive(branch, !branch.archived)}>
-                  {branch.archived ? 'Unarchive' : 'Archive'}
-                </button>
+                <OverflowMenu label="Branch options" trigger="Branch ⋯">
+                  <button type="button" role="menuitem" onClick={() => props.onRenameBranch(branch)}>
+                    Rename
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => props.onSetReason(branch)}>
+                    Reason{branch.reason ? `: ${branch.reason}` : '…'}
+                  </button>
+                  <div className="overflow-menu-section">Colour</div>
+                  <div className="swatch-row" role="group" aria-label="Branch colour">
+                    {SWATCHES.map((c) => (
+                      <button
+                        type="button"
+                        key={c}
+                        className={`swatch${branch.color === c ? ' is-active' : ''}`}
+                        style={{ background: c }}
+                        aria-label={`Set colour${branch.color === c ? ' (current)' : ''}`}
+                        aria-pressed={branch.color === c}
+                        onClick={() => props.onRecolor(branch, c)}
+                      />
+                    ))}
+                  </div>
+                  {!isCurrentBranch && branch.id !== trunk?.id && (
+                    <button type="button" role="menuitem" onClick={() => props.onArchive(branch, !branch.archived)}>
+                      {branch.archived ? 'Unarchive' : 'Archive'}
+                    </button>
+                  )}
+                </OverflowMenu>
               )}
             </div>
           )}
@@ -792,6 +815,40 @@ function OverflowMenu(props: { label: string; trigger?: string; children: React.
         </div>
       )}
     </div>
+  );
+}
+
+function ReasonDialog(props: { branch: BranchRow; onClose: () => void; onSubmit: (reason: string) => Promise<void> }) {
+  const [reason, setReason] = useState(props.branch.reason ?? '');
+  return (
+    <Modal title={`Why does “${props.branch.name}” exist?`} onClose={props.onClose}>
+      <p className="modal-hint">A short label for this branch's purpose. Leave empty to clear it.</p>
+      <div className="branch-reason-presets">
+        {REASON_PRESETS.map((p) => (
+          <button type="button" key={p} className={`chip${reason === p ? ' is-active' : ''}`} onClick={() => setReason(p)}>
+            {p}
+          </button>
+        ))}
+      </div>
+      <input
+        autoFocus
+        className="input"
+        placeholder="Why this branch? (optional)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void props.onSubmit(reason.trim());
+        }}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => void props.onSubmit(reason.trim())}>
+          Save
+        </button>
+      </div>
+    </Modal>
   );
 }
 
