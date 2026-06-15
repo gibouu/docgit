@@ -20,8 +20,10 @@ const api = {
     ipcRenderer.invoke('version:restore', documentId, commitId),
   openVersionCopy: (commitId: string) => ipcRenderer.invoke('version:openCopy', commitId),
 
-  createBranch: (documentId: string, name: string, fromCommitId: string) =>
-    ipcRenderer.invoke('branch:create', documentId, name, fromCommitId),
+  createBranch: (documentId: string, name: string, fromCommitId: string, reason?: string) =>
+    ipcRenderer.invoke('branch:create', documentId, name, fromCommitId, reason),
+  setBranchReason: (documentId: string, branchId: string, reason: string) =>
+    ipcRenderer.invoke('branch:reason', documentId, branchId, reason),
   switchBranch: (documentId: string, branchId: string) => ipcRenderer.invoke('branch:switch', documentId, branchId),
   renameBranch: (documentId: string, branchId: string, name: string) =>
     ipcRenderer.invoke('branch:rename', documentId, branchId, name),

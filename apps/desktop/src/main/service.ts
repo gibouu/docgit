@@ -349,11 +349,17 @@ export class DocumentService {
 
   // ── Branches ───────────────────────────────────────────────────────────
 
-  createBranch(documentId: string, name: string, fromCommitId: string): BranchRow {
-    this.log(`ACTION createBranch "${name}" from ${fromCommitId.slice(0, 8)}`);
+  createBranch(documentId: string, name: string, fromCommitId: string, reason?: string): BranchRow {
+    this.log(`ACTION createBranch "${name}" from ${fromCommitId.slice(0, 8)}${reason ? ` (${reason})` : ''}`);
     this.snapshotDiskBeforeOverwrite(documentId);
-    const branch = this.store.createBranch(documentId, name, fromCommitId);
+    const branch = this.store.createBranch(documentId, name, fromCommitId, undefined, reason);
     this.writeFileFromCommit(documentId, fromCommitId);
+    this.onChanged(documentId);
+    return branch;
+  }
+
+  setBranchReason(documentId: string, branchId: string, reason: string): BranchRow {
+    const branch = this.store.setBranchReason(branchId, reason);
     this.onChanged(documentId);
     return branch;
   }

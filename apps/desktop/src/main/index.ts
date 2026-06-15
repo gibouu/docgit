@@ -107,8 +107,11 @@ function registerIpc(svc: DocumentService): void {
     return path;
   });
 
-  ipcMain.handle('branch:create', (_e, documentId: string, name: string, fromCommitId: string) =>
-    svc.createBranch(documentId, name, fromCommitId),
+  ipcMain.handle('branch:create', (_e, documentId: string, name: string, fromCommitId: string, reason?: string) =>
+    svc.createBranch(documentId, name, fromCommitId, reason),
+  );
+  ipcMain.handle('branch:reason', (_e, documentId: string, branchId: string, reason: string) =>
+    svc.setBranchReason(documentId, branchId, reason),
   );
   ipcMain.handle('branch:switch', (_e, documentId: string, branchId: string) =>
     svc.switchBranch(documentId, branchId),

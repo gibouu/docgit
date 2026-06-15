@@ -67,7 +67,8 @@ export interface DocgitApi {
   restoreVersion(documentId: string, commitId: string): Promise<CommitResult>;
   openVersionCopy(commitId: string): Promise<string>;
 
-  createBranch(documentId: string, name: string, fromCommitId: string): Promise<BranchRow>;
+  createBranch(documentId: string, name: string, fromCommitId: string, reason?: string): Promise<BranchRow>;
+  setBranchReason(documentId: string, branchId: string, reason: string): Promise<BranchRow>;
   switchBranch(documentId: string, branchId: string): Promise<BranchRow>;
   renameBranch(documentId: string, branchId: string, name: string): Promise<BranchRow>;
   setBranchColor(documentId: string, branchId: string, color: string): Promise<BranchRow>;
