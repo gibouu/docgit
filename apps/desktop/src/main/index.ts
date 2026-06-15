@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectCloudProvider, DocumentService } from './service.js';
+import { Settings } from './settings.js';
 
 // One identity everywhere (dev and packaged): data lives under
 // ~/Library/Application Support/DocGit.
@@ -494,6 +495,22 @@ async function runSmokeTest(): Promise<void> {
     const cloudStatus = svc.cloudStatus(doc.id); // doc is smoke.docx in the same dir
     if (cloudStatus.conflictCopies.length !== 2) {
       throw new Error(`conflict copies not detected: ${JSON.stringify(cloudStatus.conflictCopies)}`);
+    }
+
+    // Settings store: defaults, persistence, and corrupt-file tolerance.
+    const s1 = new Settings(dir);
+    if (s1.get().autoUpdate !== true || s1.get().seenUpdateNote !== false) {
+      throw new Error('settings defaults wrong');
+    }
+    s1.set('autoUpdate', false);
+    s1.set('seenUpdateNote', true);
+    const s2 = new Settings(dir); // re-read from disk
+    if (s2.get().autoUpdate !== false || s2.get().seenUpdateNote !== true) {
+      throw new Error('settings did not persist');
+    }
+    writeFileSync(join(dir, 'settings.json'), '{ this is not json');
+    if (new Settings(dir).get().autoUpdate !== true) {
+      throw new Error('corrupt settings should fall back to defaults');
     }
 
     svc.dispose();
