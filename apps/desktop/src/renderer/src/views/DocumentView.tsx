@@ -267,6 +267,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                         </span>
                       )}
                     </span>
+                    {branch.reason && <span className="branch-reason">{branch.reason}</span>}
                     {lastEditor && <span className="dock-branch-editor">last edit by {lastEditor}</span>}
                   </button>
                 </li>
@@ -383,8 +384,8 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
-          onCreate={async (name) => {
-            const branch = await window.docgit.createBranch(doc.id, name, dialog.from.id);
+          onCreate={async (name, reason) => {
+            const branch = await window.docgit.createBranch(doc.id, name, dialog.from.id, reason);
             setDialog(null);
             // Jump straight onto the new branch so it's obvious you're now in it.
             setComparison(null);
@@ -781,8 +782,12 @@ function NameDialog(props: {
   );
 }
 
-function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+const REASON_PRESETS = ['Translation', 'Client revision', 'Experiment', 'Draft', 'Backup'];
+
+function BranchDialog(props: { onClose: () => void; onCreate: (name: string, reason?: string) => Promise<void> }) {
   const [name, setName] = useState('');
+  const [reason, setReason] = useState('');
+  const create = () => void props.onCreate(name.trim(), reason.trim() || undefined);
   return (
     <Modal title="Name this branch" onClose={props.onClose}>
       <p className="modal-hint">
@@ -796,14 +801,32 @@ function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => 
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && name.trim()) void props.onCreate(name.trim());
+          if (e.key === 'Enter' && name.trim()) create();
         }}
+      />
+      <div className="branch-reason-presets">
+        {REASON_PRESETS.map((p) => (
+          <button
+            type="button"
+            key={p}
+            className={`chip${reason === p ? ' is-active' : ''}`}
+            onClick={() => setReason(p)}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+      <input
+        className="input"
+        placeholder="Why this branch? (optional)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
       />
       <div className="modal-actions">
         <button type="button" className="btn" onClick={props.onClose}>
           Cancel
         </button>
-        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={() => void props.onCreate(name.trim())}>
+        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={create}>
           Create branch
         </button>
       </div>
