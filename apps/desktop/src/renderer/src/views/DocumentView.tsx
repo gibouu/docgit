@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BranchRow, CommitRow, DocDiff, DocumentGraph, UpstreamStatus } from '@docgit/core';
 import type { CloudStatus, DocumentInfo } from '../../../preload/api';
 import { DiffView, HorizontalBranchGraph } from '@docgit/ui';
@@ -477,15 +477,19 @@ function DetailsTab(props: {
     <div className="details-tab">
       <div className="details-main">
         <div className="version-details">
-          <h2>
-            {versionTitle(commit)}{' '}
-            {isAutoSaved(commit) && <span className="autosaved-tag">auto-saved</span>}{' '}
+          <div className="version-header">
+            <h2>
+              {versionTitle(commit)}{' '}
+              {isAutoSaved(commit) && <span className="autosaved-tag">auto-saved</span>}
+            </h2>
             {!readOnly && (
-              <button type="button" className="btn btn-mini" onClick={() => props.onRenameVersion(commit)}>
-                ✎ Rename
-              </button>
+              <OverflowMenu label="Version options">
+                <button type="button" role="menuitem" onClick={() => props.onRenameVersion(commit)}>
+                  Rename this version
+                </button>
+              </OverflowMenu>
             )}
-          </h2>
+          </div>
           {!isHead && (
             <p className="not-latest">⚠ Not the latest version of “{branch?.name}” — you're looking at history.</p>
           )}
@@ -744,6 +748,52 @@ function SentTab({ graph, onOpenVersion }: { graph: DocumentGraph; onOpenVersion
 // ── Dialogs & shared bits ──────────────────────────────────────────────────
 
 const SWATCHES = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16'];
+
+/**
+ * A small icon-triggered popover menu, dismissible by outside-click or Escape —
+ * mirrors the library row `.row-menu` pattern. `children` are the menu rows
+ * (real <button>s) and any swatch rows.
+ */
+function OverflowMenu(props: { label: string; trigger?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="overflow-menu-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="overflow-menu-trigger"
+        aria-label={props.label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {props.trigger ?? '⋯'}
+      </button>
+      {open && (
+        <div className="row-menu overflow-menu" role="menu" onClick={() => setOpen(false)}>
+          {props.children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function NameDialog(props: {
   title: string;

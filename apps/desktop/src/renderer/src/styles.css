@@ -805,6 +805,54 @@ body {
   color: var(--dg-ink-soft);
 }
 
+/* version header: title + a quiet ⋯ overflow trigger */
+.version-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.version-header h2 { margin: 0 0 10px; }
+
+/* shared overflow menu (version + branch) — reuses .row-menu for the popover */
+.overflow-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.overflow-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  font-family: var(--dg-sans);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--dg-ink-soft);
+  background: var(--dg-paper-raised);
+  border: 1px solid var(--dg-hairline);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.overflow-menu-trigger:hover {
+  color: var(--dg-ink);
+  border-color: color-mix(in srgb, var(--dg-ink) 25%, transparent);
+}
+
+/* the popover itself: anchored to the trigger rather than the row edge */
+.overflow-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+  min-width: 168px;
+}
+
 .version-preview {
   display: flex;
   flex-direction: column;
