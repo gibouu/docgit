@@ -204,6 +204,11 @@ export class DocumentService {
     return this.addDocument(path);
   }
 
+  /** Track several files at once (drag-and-drop). Returns the resulting documents. */
+  addDocuments(paths: string[]): DocumentRow[] {
+    return paths.map((p) => this.addDocument(p));
+  }
+
   /**
    * Sync services resolve concurrent edits by dropping a renamed copy next
    * to the original — "Contract 2.docx" (iCloud), "Contract (1).docx"

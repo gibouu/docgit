@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 /**
  * The typed bridge the renderer sees as `window.docgit`. Pure pass-through to
@@ -39,6 +39,8 @@ const api = {
   setSharing: (documentId: string, shared: boolean, myName: string | null) =>
     ipcRenderer.invoke('docs:setSharing', documentId, shared, myName),
   addDocumentByPath: (path: string) => ipcRenderer.invoke('docs:addPath', path),
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
+  addDocumentByPaths: (paths: string[]) => ipcRenderer.invoke('docs:addPaths', paths),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
   syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),

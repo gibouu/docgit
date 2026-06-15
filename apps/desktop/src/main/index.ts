@@ -77,6 +77,7 @@ function registerIpc(svc: DocumentService): void {
     svc.setSharing(documentId, shared, myName),
   );
   ipcMain.handle('docs:addPath', (_e, path: string) => svc.addDocumentByPath(path));
+  ipcMain.handle('docs:addPaths', (_e, paths: string[]) => svc.addDocuments(paths));
   ipcMain.handle('docs:open', (_e, documentId: string) => {
     const target = svc.openTarget(documentId);
     return target.kind === 'url' ? shell.openExternal(target.target) : shell.openPath(target.target);
