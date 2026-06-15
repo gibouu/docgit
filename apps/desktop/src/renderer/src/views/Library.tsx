@@ -57,6 +57,8 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
   const countOf = (type: DocType) => documents.filter((d) => docTypeOf(d) === type).length;
 
   const [sharePrompt, setSharePrompt] = useState<{ docId: string; provider: string } | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null); // doc id whose ⋯ menu is open
+  const [renaming, setRenaming] = useState<DocumentInfo | null>(null);
 
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
@@ -106,6 +108,7 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
           <div className="library-dropzone-inner">Drop Word, Excel or PowerPoint files to add</div>
         </div>
       )}
+      {renaming && <RenameDocDialog doc={renaming} onClose={() => setRenaming(null)} onDone={onRefresh} />}
       {sharePrompt && (
         <SharedDocDialog
           provider={sharePrompt.provider}
@@ -207,7 +210,7 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
               {visible.map((doc) => {
                 const type = DOC_TYPES.find((t) => t.id === docTypeOf(doc))!;
                 return (
-                  <li key={doc.id}>
+                  <li key={doc.id} className="doc-row-wrap">
                     <button
                       type="button"
                       className="doc-row"
@@ -241,6 +244,28 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
                         </span>
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      className="doc-row-menu"
+                      aria-label="More"
+                      onClick={() => setMenuFor(menuFor === doc.id ? null : doc.id)}
+                    >
+                      ⋯
+                    </button>
+                    {menuFor === doc.id && (
+                      <div className="row-menu" onMouseLeave={() => setMenuFor(null)}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenaming(doc);
+                            setMenuFor(null);
+                          }}
+                        >
+                          Rename…
+                        </button>
+                        {/* Delete… added in PR D */}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -249,6 +274,62 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         </>
       )}
     </main>
+  );
+}
+
+function RenameDocDialog(props: { doc: DocumentInfo; onClose: () => void; onDone: () => Promise<void> }) {
+  const ext = props.doc.path.slice(props.doc.path.lastIndexOf('.'));
+  const initial = props.doc.name.replace(/\.[^.]+$/, '');
+  const [name, setName] = useState(initial);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await window.docgit.renameDocument(props.doc.id, name.trim());
+      await props.onDone();
+      props.onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^.*Error[^:]*:\s*/, '') : String(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Rename document" onClose={props.onClose}>
+      <p className="modal-hint">
+        This renames the file on your Mac too, so DocGit and Finder always match. The extension ({ext}) stays the same.
+      </p>
+      <input
+        autoFocus
+        className="input"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && name.trim()) void submit();
+        }}
+      />
+      {error && (
+        <p className="modal-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || !name.trim()}
+          onClick={() => void submit()}
+        >
+          {busy ? 'Renaming…' : 'Rename'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

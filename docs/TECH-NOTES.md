@@ -128,3 +128,18 @@ Planned fix, in order:
   `pnpm dist` sign automatically (notarization additionally needs the three
   `APPLE_*` variables exported). Without credentials, builds are unsigned —
   downloaders must right-click → Open the first time.
+
+## 6. Rename on disk
+
+- **Rename is all-or-nothing by design.** Renaming a tracked document moves
+  the real file on disk *and* updates the DocGit label in one step so the two
+  never drift. The filesystem move runs first; if the database update then
+  fails, the file is renamed back to its original path before the error is
+  surfaced. The document id (and its branch/version history) is never
+  recomputed — only `path`/`name` change — so history is preserved across a
+  rename. The original file extension is always kept.
+- **iCloud placeholders can fail the rename.** If the tracked file is an
+  un-downloaded iCloud placeholder ("Optimize Mac Storage"), the rename may
+  fail with a generic filesystem error. Because the move is attempted before
+  the database write, nothing changes when this happens — the document keeps
+  its old name. Re-download the file (open it once) and try again.

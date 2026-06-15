@@ -279,6 +279,82 @@ body {
   gap: 8px;
 }
 
+.doc-row-wrap {
+  position: relative;
+}
+
+.doc-row-menu {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dg-ink-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.doc-row-wrap:hover .doc-row-menu,
+.doc-row-menu:focus-visible {
+  opacity: 1;
+}
+
+/* Make room for the ⋯ button so it never overlaps the meta column. */
+.doc-row-wrap:hover .doc-row,
+.doc-row-wrap:focus-within .doc-row {
+  padding-right: 44px;
+}
+
+.doc-row-menu:hover {
+  background: var(--dg-paper);
+  border-color: var(--dg-hairline);
+  color: var(--dg-ink);
+}
+
+.row-menu {
+  position: absolute;
+  top: calc(50% + 16px);
+  right: 8px;
+  z-index: 20;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--dg-paper-raised);
+  border: 1px solid var(--dg-hairline);
+  border-radius: 10px;
+  box-shadow: 0 8px 26px rgba(33, 29, 24, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.row-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  font-family: var(--dg-sans);
+  font-size: 13px;
+  color: var(--dg-ink);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row-menu button:hover {
+  background: var(--dg-paper);
+}
+
 .doc-row {
   display: flex;
   align-items: center;
@@ -1109,6 +1185,16 @@ body {
 }
 
 .modal-hint { font-size: 12px; color: var(--dg-ink-soft); margin: 0 0 4px; }
+
+.modal-error {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
 
 .modal-actions {
   display: flex;
