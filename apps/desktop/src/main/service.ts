@@ -22,6 +22,7 @@ import {
   type UpstreamStatus,
   type ValueFormat,
 } from '@docgit/core';
+import { shell } from 'electron';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -207,6 +208,21 @@ export class DocumentService {
   /** Track several files at once (drag-and-drop). Returns the resulting documents. */
   addDocuments(paths: string[]): DocumentRow[] {
     return paths.map((p) => this.addDocument(p));
+  }
+
+  /**
+   * Remove a document from DocGit, optionally moving the real file to the Trash.
+   * Ordered so a failed Trash never leaves DocGit half-deleted: the file is
+   * trashed FIRST, so if that throws the document stays fully tracked + watched.
+   */
+  async deleteDocument(documentId: string, opts: { trashFile: boolean }): Promise<void> {
+    const doc = this.store.getDocument(documentId);
+    if (opts.trashFile && !isRemoteKey(doc.path)) {
+      await shell.trashItem(doc.path); // throws if locked/missing → abort with doc intact
+    }
+    this.unwatch(documentId);
+    this.store.deleteDocument(documentId);
+    this.onChanged(documentId);
   }
 
   /**
