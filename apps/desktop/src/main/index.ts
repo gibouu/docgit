@@ -207,7 +207,8 @@ async function runSmokeTest(): Promise<void> {
       throw new Error(`unexpected diff summary: ${JSON.stringify(diff.summary)}`);
     }
 
-    const branch = svc.createBranch(doc.id, 'Client B variant', graph.commits[0]!.id);
+    const branch = svc.createBranch(doc.id, 'Client B variant', graph.commits[0]!.id, 'Client revision');
+    if (branch.reason !== 'Client revision') throw new Error('branch reason not persisted');
     svc.markSent(doc.id, v2.commit.id, { recipient: 'Acme', channel: 'email' });
     const after = svc.getGraph(doc.id);
     if (after.branches.length !== 2) throw new Error('branch not created');
