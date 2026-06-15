@@ -517,8 +517,10 @@ function DetailsTab(props: {
               <dt>Branch</dt>
               <dd>
                 <span className="dg-branch-pill" style={{ ['--dg-pill' as string]: branch?.color }}>
+                  <span className="dg-branch-pill-dot" style={{ background: branch?.color }} />
                   {branch?.name}
                 </span>
+                {branch?.reason && <span className="dg-branch-pill-reason">{branch.reason}</span>}
               </dd>
             </div>
             {commit.author && (
@@ -582,14 +584,15 @@ function DetailsTab(props: {
               </>
             )}
             {!readOnly && (
-              <button type="button" className="btn" onClick={() => props.onBranch(commit)}>
+              <button type="button" className="btn btn-primary" onClick={() => props.onBranch(commit)}>
                 Branch from here
               </button>
             )}
-            <button type="button" className="btn" onClick={() => props.onSend(commit)}>
-              Mark as sent…
-            </button>
           </div>
+
+          <button type="button" className="link-action" onClick={() => props.onSend(commit)}>
+            Mark as sent…
+          </button>
 
           {isHead && branch && (
             <div className="branch-controls">
