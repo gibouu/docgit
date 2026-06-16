@@ -190,3 +190,17 @@ Planned fix, in order:
   update. Confirm on the next tagged release.
 - **Dev/smoke are inert.** All update behaviour is guarded by `app.isPackaged`;
   `pnpm dev` and the headless smoke/boot checks never reach the network.
+
+## 9. Backup / restore
+
+- **One file is the whole backup.** `docgit.db` holds every version's full file
+  bytes (content-addressed `objects` table), so "Back up now…" copies that single
+  file and captures all documents, versions, and branches — not just metadata.
+- **Restore = replace + relaunch.** Restoring validates the chosen file is a
+  DocGit database, saves the current one to `docgit.db.bak`, overwrites
+  `docgit.db`, and relaunches. There is no history merge (out of scope) — restore
+  swaps in the backup wholesale.
+- **Paths travel, files may not.** A restored database remembers where the tracked
+  documents lived on the original machine. History and version *content* are fully
+  intact, but if the actual files now live elsewhere (new Mac, moved folders),
+  live-watching may need them re-added at their new locations.

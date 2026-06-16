@@ -8,6 +8,7 @@ export interface UpdateState {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'disabled';
   version?: string;
   percent?: number;
+  notes?: string;
 }
 
 type Send = (state: UpdateState) => void;
@@ -16,6 +17,15 @@ let state: UpdateState = { status: 'idle' };
 
 export function getUpdateState(): UpdateState {
   return state;
+}
+
+function notesToText(
+  rn: string | Array<{ version: string; note: string | null }> | null | undefined,
+): string | undefined {
+  if (!rn) return undefined;
+  if (typeof rn === 'string') return rn.trim() || undefined;
+  const text = rn.map((r) => r.note ?? '').filter(Boolean).join('\n\n').trim();
+  return text || undefined;
 }
 
 /**
@@ -46,7 +56,9 @@ export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): v
   autoUpdater.on('update-available', (info) => set({ status: 'available', version: info.version }));
   autoUpdater.on('update-not-available', () => set({ status: 'idle' }));
   autoUpdater.on('download-progress', (p) => set({ status: 'downloading', percent: Math.round(p.percent) }));
-  autoUpdater.on('update-downloaded', (info) => set({ status: 'ready', version: info.version }));
+  autoUpdater.on('update-downloaded', (info) =>
+    set({ status: 'ready', version: info.version, notes: notesToText(info.releaseNotes) }),
+  );
   autoUpdater.on('error', (err) => {
     log(`error ${String(err)}`);
     set({ status: 'error' });

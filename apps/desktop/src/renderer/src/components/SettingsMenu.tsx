@@ -15,6 +15,8 @@ export function SettingsMenu({ version }: { version: string }) {
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [update, setUpdate] = useState<UpdateState>({ status: 'idle' });
+  const [confirmRestore, setConfirmRestore] = useState(false);
+  const [dataMsg, setDataMsg] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,6 +61,50 @@ export function SettingsMenu({ version }: { version: string }) {
               Check now
             </button>
           </div>
+          <div className="settings-divider" />
+          <div className="settings-section-label">Your data</div>
+          <div className="settings-data-actions">
+            <button
+              type="button"
+              className="btn btn-mini"
+              onClick={async () => {
+                const path = await window.docgit.runBackup();
+                setDataMsg(path ? 'Backup saved.' : '');
+              }}
+            >
+              Back up now…
+            </button>
+            <button type="button" className="btn btn-mini" onClick={() => window.docgit.revealDataFolder()}>
+              Reveal data folder
+            </button>
+          </div>
+          {!confirmRestore ? (
+            <button type="button" className="settings-restore-link" onClick={() => setConfirmRestore(true)}>
+              Restore from a backup…
+            </button>
+          ) : (
+            <div className="settings-restore-confirm">
+              <p>This replaces your current history with the backup. Your current data is saved to <code>docgit.db.bak</code> first, and DocGit will relaunch.</p>
+              <div className="settings-data-actions">
+                <button type="button" className="btn btn-mini" onClick={() => setConfirmRestore(false)}>Cancel</button>
+                <button
+                  type="button"
+                  className="btn btn-mini btn-danger"
+                  onClick={async () => {
+                    try {
+                      await window.docgit.restoreBackup(); // app relaunches on success; an invalid file rejects here
+                      setConfirmRestore(false);
+                    } catch (err) {
+                      setDataMsg(err instanceof Error ? err.message.replace(/^.*Error[^:]*:\s*/, '') : String(err));
+                    }
+                  }}
+                >
+                  Choose backup & restore
+                </button>
+              </div>
+            </div>
+          )}
+          {dataMsg && <p className="settings-hint">{dataMsg}</p>}
           {version && <p className="settings-version">DocGit v{version}</p>}
         </div>
       )}

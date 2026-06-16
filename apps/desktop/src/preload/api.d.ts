@@ -51,6 +51,7 @@ export interface UpdateState {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'disabled';
   version?: string;
   percent?: number;
+  notes?: string;
 }
 
 export interface AppSettings {
@@ -122,6 +123,10 @@ export interface DocgitApi {
   setAutoUpdate(enabled: boolean): Promise<AppSettings>;
   markUpdateNoteSeen(): Promise<AppSettings>;
   onUpdate(callback: (state: UpdateState) => void): () => void;
+
+  runBackup(): Promise<string | null>;
+  restoreBackup(): Promise<void>;
+  revealDataFolder(): Promise<void>;
 }
 
 declare global {

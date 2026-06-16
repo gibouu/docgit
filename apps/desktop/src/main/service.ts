@@ -120,6 +120,11 @@ export class DocumentService {
     }
   }
 
+  /** Flush pending writes to the main DB file so an on-disk backup is complete. */
+  checkpoint(): void {
+    this.store.checkpoint();
+  }
+
   dispose(): void {
     for (const watcher of this.watchers.values()) void watcher.close();
     this.watchers.clear();

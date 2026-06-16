@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectCloudProvider, DocumentService } from './service.js';
 import { Settings } from './settings.js';
+import { backupDatabase, restoreDatabase, assertDocgitDb } from './backup.js';
 import { initUpdater, getUpdateState, checkForUpdatesNow, quitAndInstall, type UpdateState } from './updater.js';
 
 // One identity everywhere (dev and packaged): data lives under
@@ -181,6 +182,37 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('update:markNoteSeen', () =>
     settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true },
   );
+
+  ipcMain.handle('backup:run', async () => {
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Back up DocGit',
+      defaultPath: `DocGit-backup-${new Date().toISOString().slice(0, 10)}.docgitdb`,
+    });
+    if (res.canceled || !res.filePath) return null;
+    service?.checkpoint(); // flush WAL → main file so the copy is complete (WAL mode)
+    return backupDatabase(join(app.getPath('userData'), 'docgit.db'), res.filePath);
+  });
+
+  ipcMain.handle('backup:restore', async () => {
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Restore DocGit from a backup',
+      filters: [{ name: 'DocGit backup', extensions: ['docgitdb', 'db'] }],
+      properties: ['openFile'],
+    });
+    if (res.canceled || !res.filePaths[0]) return;
+    const src = res.filePaths[0];
+    assertDocgitDb(src); // validate BEFORE touching anything; throws -> renderer shows error, nothing changed
+    const dbPath = join(app.getPath('userData'), 'docgit.db');
+    service?.dispose(); // close the live DB before swapping the file
+    service = null; // prevent a second dispose() on the closed handle (quit path)
+    restoreDatabase(dbPath, src); // saves docgit.db.bak, then overwrites
+    app.relaunch();
+    app.exit(0);
+  });
+
+  ipcMain.handle('data:reveal', () => {
+    shell.showItemInFolder(join(app.getPath('userData'), 'docgit.db'));
+  });
 }
 
 /**
@@ -544,7 +576,42 @@ async function runSmokeTest(): Promise<void> {
       throw new Error('corrupt settings should fall back to defaults');
     }
 
+    // Live backup (store still open) must capture data despite WAL mode.
+    {
+      const { backupDatabase: liveBackup, assertDocgitDb: liveAssert } = await import('./backup.js');
+      const { SnapshotStore: LiveStore } = await import('@docgit/core');
+      svc.checkpoint();
+      const livePath = join(dir, 'live-backup.docgitdb');
+      liveBackup(join(dir, 'docgit.db'), livePath);
+      liveAssert(livePath);
+      const ls = new LiveStore(livePath);
+      if (ls.listDocuments().length === 0) throw new Error('live backup (WAL) lost documents');
+      ls.close();
+    }
+
     svc.dispose();
+
+    // Backup / restore round-trip + validation.
+    const { backupDatabase, restoreDatabase, assertDocgitDb } = await import('./backup.js');
+    const { SnapshotStore } = await import('@docgit/core');
+    const backupPath = join(dir, 'backup.docgitdb');
+    backupDatabase(join(dir, 'docgit.db'), backupPath);
+    assertDocgitDb(backupPath); // valid DocGit db → no throw
+    const restoreDir = mkdtempSync(join(tmpdir(), 'docgit-restore-'));
+    const restoredDb = join(restoreDir, 'docgit.db');
+    restoreDatabase(restoredDb, backupPath);
+    const restoredStore = new SnapshotStore(restoredDb);
+    if (restoredStore.listDocuments().length === 0) throw new Error('restore lost documents');
+    restoredStore.close();
+    writeFileSync(join(dir, 'notadb.txt'), 'hello');
+    let rejected = false;
+    try {
+      assertDocgitDb(join(dir, 'notadb.txt'));
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error('assertDocgitDb should reject a non-DocGit file');
+
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
     app.exit(0);
   } catch (err) {
