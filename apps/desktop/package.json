@@ -11,7 +11,7 @@
     "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js && DOCGIT_BOOT_CHECK=1 electron out/main/index.js",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "echo 'desktop: covered by smoke test (pnpm smoke) and core tests'",
-    "dist": "electron-vite build && electron-builder --config electron-builder.yml",
+    "dist": "electron-vite build && electron-builder --config electron-builder.yml --publish never",
     "icon": "electron scripts/render-icon.cjs build/icon.svg build/icon-1024.png"
   },
   "devDependencies": {
