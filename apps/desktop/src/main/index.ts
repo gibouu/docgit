@@ -189,6 +189,7 @@ function registerIpc(svc: DocumentService): void {
       defaultPath: `DocGit-backup-${new Date().toISOString().slice(0, 10)}.docgitdb`,
     });
     if (res.canceled || !res.filePath) return null;
+    service?.checkpoint(); // flush WAL → main file so the copy is complete (WAL mode)
     return backupDatabase(join(app.getPath('userData'), 'docgit.db'), res.filePath);
   });
 
@@ -203,6 +204,7 @@ function registerIpc(svc: DocumentService): void {
     assertDocgitDb(src); // validate BEFORE touching anything; throws -> renderer shows error, nothing changed
     const dbPath = join(app.getPath('userData'), 'docgit.db');
     service?.dispose(); // close the live DB before swapping the file
+    service = null; // prevent a second dispose() on the closed handle (quit path)
     restoreDatabase(dbPath, src); // saves docgit.db.bak, then overwrites
     app.relaunch();
     app.exit(0);
@@ -572,6 +574,19 @@ async function runSmokeTest(): Promise<void> {
     writeFileSync(join(dir, 'settings.json'), '{ this is not json');
     if (new Settings(dir).get().autoUpdate !== true) {
       throw new Error('corrupt settings should fall back to defaults');
+    }
+
+    // Live backup (store still open) must capture data despite WAL mode.
+    {
+      const { backupDatabase: liveBackup, assertDocgitDb: liveAssert } = await import('./backup.js');
+      const { SnapshotStore: LiveStore } = await import('@docgit/core');
+      svc.checkpoint();
+      const livePath = join(dir, 'live-backup.docgitdb');
+      liveBackup(join(dir, 'docgit.db'), livePath);
+      liveAssert(livePath);
+      const ls = new LiveStore(livePath);
+      if (ls.listDocuments().length === 0) throw new Error('live backup (WAL) lost documents');
+      ls.close();
     }
 
     svc.dispose();

@@ -13,10 +13,10 @@ export function assertDocgitDb(srcPath: string): void {
   let db: DatabaseSync | undefined;
   try {
     db = new DatabaseSync(srcPath, { readOnly: true });
-    const row = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='documents'")
-      .get();
-    if (!row) throw new Error("That file isn't a DocGit backup.");
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('documents','commits')")
+      .all();
+    if (tables.length < 2) throw new Error("That file isn't a DocGit backup.");
   } catch {
     throw new Error("That file isn't a DocGit backup.");
   } finally {

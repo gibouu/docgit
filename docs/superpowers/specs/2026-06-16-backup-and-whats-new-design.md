@@ -63,10 +63,12 @@ rarely needed — out of scope for v1.
 **`apps/desktop/src/main/backup.ts`** (new, electron-free core logic, dir-injected
 where possible):
 - `backupDatabase(dbPath, destPath)` — `copyFileSync(dbPath, destPath)`. DocGit
-  uses the default rollback-journal mode and writes in short transactions, so the
-  `.db` file is a valid, self-contained database between transactions; a
-  user-triggered copy is consistent. (If a sidecar `-journal`/`-wal` ever exists,
-  the copy still restores to a valid prior committed state.) Returns the dest path.
+  runs the database in **WAL mode** (`PRAGMA journal_mode = WAL`), so
+  committed-but-not-yet-checkpointed writes live in the `docgit.db-wal` sidecar,
+  not in the main `.db` file. For a live (store-still-open) backup the caller must
+  therefore first run `PRAGMA wal_checkpoint(TRUNCATE)` (via `service.checkpoint()`)
+  to flush the WAL into the main file; after that, copying the single `docgit.db`
+  is a complete, consistent backup. Returns the dest path.
 - `restoreDatabase(dbPath, srcPath)` — validate `srcPath` is a readable SQLite
   DocGit database (open it, check `PRAGMA user_version` / presence of the
   `documents` table) → copy current `dbPath` to `${dbPath}.bak` (safety) → copy

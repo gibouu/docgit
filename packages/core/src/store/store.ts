@@ -275,6 +275,11 @@ export class SnapshotStore {
     }
   }
 
+  /** Flush the WAL into the main database file (so a file copy is a complete backup). */
+  checkpoint(): void {
+    this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+  }
+
   close(): void {
     this.db.close();
   }
