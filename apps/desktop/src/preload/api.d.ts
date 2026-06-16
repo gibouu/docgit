@@ -51,6 +51,7 @@ export interface UpdateState {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'ready' | 'error' | 'disabled';
   version?: string;
   percent?: number;
+  notes?: string;
 }
 
 export interface AppSettings {
