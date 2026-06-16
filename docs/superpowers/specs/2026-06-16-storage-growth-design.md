@@ -64,8 +64,13 @@ This fits the existing schema: parts are just more rows in `objects`
   into parts and then GC the originals — opt-in or automatic-when-idle, never
   blocking, and never deleting until the part representation is verified to
   reconstruct byte-identical output.
-- **Round-trip guarantee:** before GC removes a legacy blob, assert
-  `reconstruct(parts) == originalBytes`. No version's content is ever lost.
+- **Round-trip guarantee (content-identical, NOT byte-identical):** re-zipping OOXML with
+  fflate cannot reproduce Microsoft's exact container bytes, and nothing in DocGit depends
+  on byte-identity (no-op/coalesce/restore key on `model_hash`; diffs run on the model;
+  DocGit already ships fflate-rezipped files to users via live-links). So before GC removes
+  a legacy blob, assert reconstruction is **content-identical** — decompress the
+  reconstructed zip and compare each part's bytes to the stored parts (or re-derive
+  `model_hash`), not `reconstruct(parts) == originalBytes`. No version's content is lost.
 - **Interactions to respect:** content-addressed dedup already exists; the live
   links system and diff operate on the model JSON (unaffected); the backup/export
   (#57) still works since it copies the whole DB regardless of representation.
@@ -82,8 +87,9 @@ objects). Not bundled with small features.
 
 - [ ] A media-heavy document saved N times stores embedded media once, not N times
       (measured: DB size grows ~by changed-part size, not whole-file size).
-- [ ] Every version reconstructs byte-identical (or model-identical where byte-exact
-      isn't required) across docx/xlsx/pptx.
+- [ ] Every version reconstructs **content-identical** (same parts, same per-part bytes,
+      same `model_hash`, Office-openable) across docx/xlsx/pptx. Byte-identical containers
+      are explicitly NOT required (and not achievable).
 - [ ] Legacy whole-file databases keep working; backfill is safe and resumable.
 - [ ] GC removes only truly-orphaned objects; `VACUUM` reclaims space.
 - [ ] Backup/export (#57) and diffs/links/branches are unaffected.
