@@ -84,6 +84,13 @@ function registerIpc(svc: DocumentService): void {
     svc.setSharing(documentId, shared, myName),
   );
   ipcMain.handle('docs:addPath', (_e, path: string) => svc.addDocumentByPath(path));
+  ipcMain.handle('docs:addPaths', (_e, paths: string[]) => svc.addDocuments(paths));
+  ipcMain.handle('docs:rename', (_e, documentId: string, newBaseName: string) =>
+    svc.renameDocument(documentId, newBaseName),
+  );
+  ipcMain.handle('docs:delete', (_e, documentId: string, opts: { trashFile: boolean }) =>
+    svc.deleteDocument(documentId, opts),
+  );
   ipcMain.handle('docs:open', (_e, documentId: string) => {
     const target = svc.openTarget(documentId);
     return target.kind === 'url' ? shell.openExternal(target.target) : shell.openPath(target.target);
@@ -114,8 +121,11 @@ function registerIpc(svc: DocumentService): void {
     return path;
   });
 
-  ipcMain.handle('branch:create', (_e, documentId: string, name: string, fromCommitId: string) =>
-    svc.createBranch(documentId, name, fromCommitId),
+  ipcMain.handle('branch:create', (_e, documentId: string, name: string, fromCommitId: string, reason?: string) =>
+    svc.createBranch(documentId, name, fromCommitId, reason),
+  );
+  ipcMain.handle('branch:reason', (_e, documentId: string, branchId: string, reason: string) =>
+    svc.setBranchReason(documentId, branchId, reason),
   );
   ipcMain.handle('branch:switch', (_e, documentId: string, branchId: string) =>
     svc.switchBranch(documentId, branchId),
@@ -225,7 +235,8 @@ async function runSmokeTest(): Promise<void> {
       throw new Error(`unexpected diff summary: ${JSON.stringify(diff.summary)}`);
     }
 
-    const branch = svc.createBranch(doc.id, 'Client B variant', graph.commits[0]!.id);
+    const branch = svc.createBranch(doc.id, 'Client B variant', graph.commits[0]!.id, 'Client revision');
+    if (branch.reason !== 'Client revision') throw new Error('branch reason not persisted');
     svc.markSent(doc.id, v2.commit.id, { recipient: 'Acme', channel: 'email' });
     const after = svc.getGraph(doc.id);
     if (after.branches.length !== 2) throw new Error('branch not created');

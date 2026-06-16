@@ -4,11 +4,25 @@ Git-style version control for office documents — without the git.
 
 DocGit gives professionals who iterate on high-stakes documents (contracts, business plans, CVs, per-client and multilingual variants) a visual version tree, branching, send-tracking, and trustworthy side-by-side diffs for Word, Excel and PowerPoint documents — plus La Suite Docs and Grist.
 
-## Download
+## Download & install
 
-Grab the latest **[DocGit.app DMG from Releases](https://github.com/gibouu/docgit/releases/latest)** (Apple silicon). The app is **signed and notarized by Apple** — open the DMG, drag DocGit to Applications, and double-click. No security prompts, no right-click ritual.
+### ⬇︎ [Download DocGit for Mac](https://github.com/gibouu/docgit/releases/latest) (Apple silicon)
 
-Once installed, **DocGit updates itself** — no need to come back and re-download.
+**First time:**
+
+1. Open the download link above. Under **Assets**, click the file ending in **`.dmg`** (it looks like `DocGit-0.10.0-arm64.dmg`). *Ignore the `.zip` and other files — those are only for automatic updates.*
+2. Open the downloaded **`.dmg`** (double-click it in your Downloads).
+3. In the window that appears, **drag the DocGit icon onto the Applications folder.**
+4. Open **Applications** and double-click **DocGit**. It opens straight away — the app is signed and notarized by Apple, so there are no security warnings.
+
+**Already have an older version (e.g. 0.9)?** Your documents and history are stored separately from the app, so updating never touches them — you just drop the new one on top:
+
+1. **Quit DocGit** if it's open (⌘Q).
+2. Download the latest **`.dmg`** and open it, exactly as above.
+3. Drag **DocGit** onto **Applications**; when macOS asks *"An item named 'DocGit' already exists,"* click **Replace**.
+4. Open DocGit — your documents, versions, and branches are all exactly where you left them.
+
+> **DocGit keeps itself up to date.** Once you're on a recent build, DocGit checks for new releases on launch and just shows a one-click **"Restart to update"** — so this manual download is the last one you'll need to do by hand.
 
 New here? Read the **[one-page tutorial](docs/TUTORIAL.md)**.
 
