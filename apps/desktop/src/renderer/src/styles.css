@@ -1397,3 +1397,10 @@ body {
 .settings-status { justify-content: space-between; margin-top: 10px; }
 .settings-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--dg-ink-soft); }
 .settings-version { margin: 10px 0 0; font-size: 11px; color: var(--dg-ink-soft); }
+.settings-divider { height: 1px; background: var(--dg-hairline); margin: 12px 0 10px; }
+.settings-section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dg-ink-soft); margin-bottom: 8px; }
+.settings-data-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.settings-restore-link { display: inline-block; margin-top: 8px; background: none; border: none; padding: 0; color: var(--dg-ink-soft); text-decoration: underline; cursor: pointer; font-size: 12px; }
+.settings-restore-confirm { margin-top: 8px; font-size: 12px; }
+.settings-restore-confirm p { margin: 0 0 8px; color: var(--dg-ink-soft); }
+.settings-restore-confirm code { font-size: 11px; }
