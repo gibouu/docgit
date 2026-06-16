@@ -83,6 +83,10 @@ const api = {
     ipcRenderer.on('docgit:update', listener);
     return () => ipcRenderer.removeListener('docgit:update', listener);
   },
+
+  runBackup: () => ipcRenderer.invoke('backup:run'),
+  restoreBackup: () => ipcRenderer.invoke('backup:restore'),
+  revealDataFolder: () => ipcRenderer.invoke('data:reveal'),
 };
 
 export type DocgitApi = typeof api;

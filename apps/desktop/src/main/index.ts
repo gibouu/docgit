@@ -3,6 +3,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { detectCloudProvider, DocumentService } from './service.js';
 import { Settings } from './settings.js';
+import { backupDatabase, restoreDatabase, assertDocgitDb } from './backup.js';
 import { initUpdater, getUpdateState, checkForUpdatesNow, quitAndInstall, type UpdateState } from './updater.js';
 
 // One identity everywhere (dev and packaged): data lives under
@@ -181,6 +182,35 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('update:markNoteSeen', () =>
     settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true },
   );
+
+  ipcMain.handle('backup:run', async () => {
+    const res = await dialog.showSaveDialog(win!, {
+      title: 'Back up DocGit',
+      defaultPath: `DocGit-backup-${new Date().toISOString().slice(0, 10)}.docgitdb`,
+    });
+    if (res.canceled || !res.filePath) return null;
+    return backupDatabase(join(app.getPath('userData'), 'docgit.db'), res.filePath);
+  });
+
+  ipcMain.handle('backup:restore', async () => {
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Restore DocGit from a backup',
+      filters: [{ name: 'DocGit backup', extensions: ['docgitdb', 'db'] }],
+      properties: ['openFile'],
+    });
+    if (res.canceled || !res.filePaths[0]) return;
+    const src = res.filePaths[0];
+    assertDocgitDb(src); // validate BEFORE touching anything; throws -> renderer shows error, nothing changed
+    const dbPath = join(app.getPath('userData'), 'docgit.db');
+    service?.dispose(); // close the live DB before swapping the file
+    restoreDatabase(dbPath, src); // saves docgit.db.bak, then overwrites
+    app.relaunch();
+    app.exit(0);
+  });
+
+  ipcMain.handle('data:reveal', () => {
+    shell.showItemInFolder(join(app.getPath('userData'), 'docgit.db'));
+  });
 }
 
 /**

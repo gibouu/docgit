@@ -123,6 +123,10 @@ export interface DocgitApi {
   setAutoUpdate(enabled: boolean): Promise<AppSettings>;
   markUpdateNoteSeen(): Promise<AppSettings>;
   onUpdate(callback: (state: UpdateState) => void): () => void;
+
+  runBackup(): Promise<string | null>;
+  restoreBackup(): Promise<void>;
+  revealDataFolder(): Promise<void>;
 }
 
 declare global {
