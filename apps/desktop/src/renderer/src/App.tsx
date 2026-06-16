@@ -3,6 +3,8 @@ import type { DocumentInfo } from '../../preload/api';
 import { Library } from './views/Library.js';
 import { DocumentView } from './views/DocumentView.js';
 import { SentHistory } from './views/SentHistory.js';
+import { UpdateBanner } from './components/UpdateBanner.js';
+import { Modal } from './components/Modal.js';
 
 type Route =
   | { kind: 'library' }
@@ -12,6 +14,11 @@ type Route =
 export function App() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [route, setRoute] = useState<Route>({ kind: 'library' });
+  const [showUpdateNote, setShowUpdateNote] = useState(false);
+
+  useEffect(() => {
+    void window.docgit.updateSettings().then((s) => setShowUpdateNote(!s.seenUpdateNote));
+  }, []);
 
   const refresh = useCallback(async () => {
     setDocuments(await window.docgit.listDocuments());
@@ -26,6 +33,21 @@ export function App() {
 
   return (
     <div className="app">
+      <UpdateBanner />
+      {showUpdateNote && (
+        <Modal title="DocGit keeps itself up to date" onClose={() => { void window.docgit.markUpdateNoteSeen(); setShowUpdateNote(false); }}>
+          <p className="modal-hint">
+            DocGit now checks GitHub for a new version when it starts, and installs updates in the background.
+            This is the only time DocGit uses the network — everything else stays on your Mac. You can turn it
+            off any time under ⚙ Settings.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-primary" onClick={() => { void window.docgit.markUpdateNoteSeen(); setShowUpdateNote(false); }}>
+              Got it
+            </button>
+          </div>
+        </Modal>
+      )}
       <div className="titlebar" />
       {route.kind === 'doc' && openDoc ? (
         <DocumentView

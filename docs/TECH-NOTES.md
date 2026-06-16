@@ -166,3 +166,27 @@ Planned fix, in order:
   the Trash while the document stays tracked (the watcher will report it
   missing). This fails in the safe direction; re-adding or restoring the file
   reconciles it.
+
+## 8. Auto-update
+
+- **electron-updater, GitHub provider, launch-only.** Packaged builds check
+  the repo's Releases on startup, download a newer **notarized** build in the
+  background, and prompt "Restart to update". The macOS code signature is
+  verified before install. On by default; opt out under ⚙ Settings
+  (`autoUpdate` in `settings.json`, stored next to the database).
+- **Privacy exception.** This is the only network call DocGit makes on its own.
+  It can be disabled; no telemetry is sent and no host other than GitHub
+  Releases is contacted. (See the README privacy section.)
+- **Release feed.** `release.yml` publishes the DMG (first install) plus the
+  `zip` + `latest-mac.yml` (+ `.blockmap`) that electron-updater consumes. The
+  `zip` target and the `publish:` block live in `electron-builder.yml`.
+- **Bundling.** `electron-updater` is in the electron-vite `exclude` list so it
+  is bundled into `out/main` (the packaged app ships no `node_modules`). The
+  headless smoke test imports the main bundle, so a broken updater bundle fails
+  CI.
+- **Verification limit.** Real download-and-install is only exercisable via a
+  live signed release cycle (tag `vN` → install → tag `vN+1` → observe the
+  installed app self-update). There is no local or CI click-test for the actual
+  update. Confirm on the next tagged release.
+- **Dev/smoke are inert.** All update behaviour is guarded by `app.isPackaged`;
+  `pnpm dev` and the headless smoke/boot checks never reach the network.

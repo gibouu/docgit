@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { DocumentInfo } from '../../../preload/api';
 import { Modal } from '../components/Modal.js';
+import { SettingsMenu } from '../components/SettingsMenu.js';
 
 /** Document families, color-coded throughout the library. */
 const DOC_TYPES = [
@@ -147,6 +148,7 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
           </p>
         </div>
         <div className="library-actions">
+          <SettingsMenu version="" />
           {documents.length > 0 && (
             <button type="button" className="btn" onClick={onShowHistory}>
               ✉ Sent history

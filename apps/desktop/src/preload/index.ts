@@ -71,6 +71,18 @@ const api = {
     ipcRenderer.on('docgit:changed', listener);
     return () => ipcRenderer.removeListener('docgit:changed', listener);
   },
+
+  updateState: () => ipcRenderer.invoke('update:getState'),
+  checkForUpdate: () => ipcRenderer.invoke('update:check'),
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  updateSettings: () => ipcRenderer.invoke('update:settings'),
+  setAutoUpdate: (enabled: boolean) => ipcRenderer.invoke('update:setEnabled', enabled),
+  markUpdateNoteSeen: () => ipcRenderer.invoke('update:markNoteSeen'),
+  onUpdate: (callback: (state: unknown) => void) => {
+    const listener = (_event: unknown, state: unknown) => callback(state);
+    ipcRenderer.on('docgit:update', listener);
+    return () => ipcRenderer.removeListener('docgit:update', listener);
+  },
 };
 
 export type DocgitApi = typeof api;

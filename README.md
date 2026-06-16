@@ -22,18 +22,19 @@ DocGit gives professionals who iterate on high-stakes documents (contracts, busi
 3. Drag **DocGit** onto **Applications**; when macOS asks *"An item named 'DocGit' already exists,"* click **Replace**.
 4. Open DocGit — your documents, versions, and branches are all exactly where you left them.
 
-> **Automatic updates are on the way.** From an upcoming version onward, DocGit checks for new releases on its own and simply shows a **"Restart to update"** button — so this manual download is only needed once to get there.
+> **DocGit keeps itself up to date.** Once you're on a recent build, DocGit checks for new releases on launch and just shows a one-click **"Restart to update"** — so this manual download is the last one you'll need to do by hand.
 
 New here? Read the **[one-page tutorial](docs/TUTORIAL.md)**.
 
-## Privacy: local only, no exceptions
+## Privacy: local only
 
-DocGit transfers nothing and keeps nothing outside your Mac:
+DocGit keeps your documents and their history entirely on your Mac:
 
-- **No servers, no accounts, no telemetry, no analytics, no crash reporting.** The app makes zero network calls of its own.
+- **No servers, no accounts, no telemetry, no analytics, no crash reporting.** Your documents never leave the machine.
 - **Your documents and their entire version history live in one place:** `~/Library/Application Support/DocGit/` on your machine. Delete that folder and the app's data is gone.
-- The **only** network activity ever performed is to servers **you explicitly connect** (e.g. your own Grist instance via "Connect Grist…"), and that connection is read-only.
-- Fonts and all assets are bundled — nothing is fetched at runtime.
+- **One network exception: the update check.** On launch, DocGit asks GitHub Releases whether a newer version exists and, if so, downloads the notarized build in the background. It's on by default and switchable off under **⚙ Settings** — nothing about your documents is ever sent, and no other host is contacted.
+- The only other network activity is to servers **you explicitly connect** (e.g. your own Grist instance via "Connect Grist…"), and that connection is read-only.
+- Fonts and all assets are bundled — nothing else is fetched at runtime.
 
 This is verifiable in the source: the codebase is open under the [MIT license](LICENSE).
 
