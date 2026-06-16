@@ -545,6 +545,28 @@ async function runSmokeTest(): Promise<void> {
     }
 
     svc.dispose();
+
+    // Backup / restore round-trip + validation.
+    const { backupDatabase, restoreDatabase, assertDocgitDb } = await import('./backup.js');
+    const { SnapshotStore } = await import('@docgit/core');
+    const backupPath = join(dir, 'backup.docgitdb');
+    backupDatabase(join(dir, 'docgit.db'), backupPath);
+    assertDocgitDb(backupPath); // valid DocGit db → no throw
+    const restoreDir = mkdtempSync(join(tmpdir(), 'docgit-restore-'));
+    const restoredDb = join(restoreDir, 'docgit.db');
+    restoreDatabase(restoredDb, backupPath);
+    const restoredStore = new SnapshotStore(restoredDb);
+    if (restoredStore.listDocuments().length === 0) throw new Error('restore lost documents');
+    restoredStore.close();
+    writeFileSync(join(dir, 'notadb.txt'), 'hello');
+    let rejected = false;
+    try {
+      assertDocgitDb(join(dir, 'notadb.txt'));
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error('assertDocgitDb should reject a non-DocGit file');
+
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
     app.exit(0);
   } catch (err) {
