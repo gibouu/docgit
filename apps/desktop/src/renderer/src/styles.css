@@ -11,6 +11,9 @@
   --dg-hairline: #e7e0d4;
   --dg-accent: #31543f;
   --dg-accent-ink: #f4f1e9;
+  --dg-danger: #b42318;
+  --dg-danger-bg: #fef3f2;
+  --dg-danger-border: #fecdca;
   --dg-serif: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
   --dg-sans: 'Public Sans Variable', 'Avenir Next', 'Helvetica Neue', sans-serif;
 }
@@ -72,6 +75,14 @@ body {
 
 .btn-primary:hover { background: color-mix(in srgb, var(--dg-accent) 88%, black); border-color: var(--dg-accent); }
 
+.btn-danger {
+  background: var(--dg-danger);
+  border-color: var(--dg-danger);
+  color: #fff;
+}
+
+.btn-danger:hover { background: color-mix(in srgb, var(--dg-danger) 88%, black); border-color: var(--dg-danger); }
+
 .btn-ghost {
   background: transparent;
   border-color: transparent;
@@ -104,12 +115,34 @@ body {
 /* ── Library ──────────────────────────────────────────────────────────── */
 
 .library {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 18px 44px 60px;
   max-width: 1060px;
   width: 100%;
   margin: 0 auto;
+}
+
+.library.is-dragover {
+  outline: 2px dashed var(--dg-accent);
+  outline-offset: -8px;
+}
+.library-dropzone {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--dg-paper) 72%, transparent);
+  pointer-events: none;
+  z-index: 5;
+}
+.library-dropzone-inner {
+  font-weight: 600;
+  padding: 16px 22px;
+  border-radius: 12px;
+  background: var(--dg-paper-raised);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
 .library-header {
@@ -204,6 +237,40 @@ body {
 
 .filter-chip.is-active .filter-dot { background: var(--dg-paper-raised) !important; }
 
+.branch-reason-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+.chip {
+  font-family: var(--dg-sans);
+  font-size: 11.5px;
+  font-weight: 640;
+  color: var(--dg-ink-soft);
+  background: var(--dg-paper-raised);
+  border: 1px solid var(--dg-hairline);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.chip:hover { border-color: color-mix(in srgb, var(--dg-ink) 25%, transparent); }
+
+.chip.is-active {
+  color: var(--dg-paper-raised);
+  background: var(--dg-ink);
+  border-color: var(--dg-ink);
+}
+
+.branch-reason {
+  font-size: 0.78em;
+  opacity: 0.6;
+  padding-left: 18px; /* align under the branch name, past the swatch — matches .dock-branch-editor */
+}
+
 .filter-dot {
   width: 8px;
   height: 8px;
@@ -223,6 +290,84 @@ body {
   flex-direction: column;
   gap: 8px;
 }
+
+.doc-row-wrap {
+  position: relative;
+}
+
+.doc-row-menu {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--dg-ink-soft);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+
+.doc-row-wrap:hover .doc-row-menu,
+.doc-row-menu:focus-visible {
+  opacity: 1;
+}
+
+/* Make room for the ⋯ button so it never overlaps the meta column. */
+.doc-row-wrap:hover .doc-row,
+.doc-row-wrap:focus-within .doc-row {
+  padding-right: 44px;
+}
+
+.doc-row-menu:hover {
+  background: var(--dg-paper);
+  border-color: var(--dg-hairline);
+  color: var(--dg-ink);
+}
+
+.row-menu {
+  position: absolute;
+  top: calc(50% + 16px);
+  right: 8px;
+  z-index: 20;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--dg-paper-raised);
+  border: 1px solid var(--dg-hairline);
+  border-radius: 10px;
+  box-shadow: 0 8px 26px rgba(33, 29, 24, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.row-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  font-family: var(--dg-sans);
+  font-size: 13px;
+  color: var(--dg-ink);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.row-menu button:hover {
+  background: var(--dg-paper);
+}
+
+.row-menu-danger { color: var(--dg-danger); }
 
 .doc-row {
   display: flex;
@@ -661,6 +806,128 @@ body {
   color: var(--dg-ink-soft);
 }
 
+/* version header: title + a quiet ⋯ overflow trigger */
+.version-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* shared overflow menu (version + branch) — reuses .row-menu for the popover */
+.overflow-menu-wrap {
+  position: relative;
+  flex: none;
+}
+
+.overflow-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 8px;
+  font-family: var(--dg-sans);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--dg-ink-soft);
+  background: var(--dg-paper-raised);
+  border: 1px solid var(--dg-hairline);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.overflow-menu-trigger:hover {
+  color: var(--dg-ink);
+  border-color: color-mix(in srgb, var(--dg-ink) 25%, transparent);
+}
+
+/* the popover itself: anchored to the trigger rather than the row edge */
+.overflow-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+  min-width: 168px;
+}
+
+.overflow-menu-section {
+  padding: 6px 10px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--dg-ink-soft);
+}
+
+.swatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 4px 10px 8px;
+}
+
+/* Scoped under .overflow-menu to outrank `.row-menu button` (which sets
+   display:block/width:100%/padding) so swatches stay 18px circles. */
+.overflow-menu .swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--dg-ink) 12%, transparent);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.overflow-menu .swatch.is-active {
+  outline: 2px solid var(--dg-ink);
+  outline-offset: 2px;
+}
+
+/* quiet text link (e.g. "Mark as sent…") */
+.link-action {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 4px 0;
+  font-family: var(--dg-sans);
+  font-size: 13px;
+  color: var(--dg-accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.link-action:hover { text-decoration: underline; }
+
+/* branch pill in the Details body: colour dot + name, optional reason subtitle */
+.dg-branch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--dg-pill, var(--dg-accent));
+  border: 1px solid color-mix(in srgb, var(--dg-pill, var(--dg-accent)) 45%, transparent);
+  background: color-mix(in srgb, var(--dg-pill, var(--dg-accent)) 8%, transparent);
+}
+
+.dg-branch-pill-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.dg-branch-pill-reason {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--dg-ink-soft);
+}
+
 .version-preview {
   display: flex;
   flex-direction: column;
@@ -773,15 +1040,6 @@ body {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--dg-accent);
-}
-
-.branch-color-pick {
-  font-size: 11px;
-  border: 1px solid var(--dg-hairline);
-  border-radius: 6px;
-  background: var(--dg-paper-raised);
-  padding: 2px 4px;
-  max-width: 84px;
 }
 
 .branch-panel-hint { font-size: 12px; color: var(--dg-ink-soft); }
@@ -1054,6 +1312,27 @@ body {
 }
 
 .modal-hint { font-size: 12px; color: var(--dg-ink-soft); margin: 0 0 4px; }
+
+.modal-error {
+  color: var(--dg-danger);
+  background: var(--dg-danger-bg);
+  border: 1px solid var(--dg-danger-border);
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin: 8px 0 0;
+}
+
+.modal-warn { color: #b54708; font-size: 0.85em; margin: 8px 0 0; }
+
+.modal-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--dg-ink);
+}
 
 .modal-actions {
   display: flex;

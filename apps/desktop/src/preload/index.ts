@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 
 /**
  * The typed bridge the renderer sees as `window.docgit`. Pure pass-through to
@@ -20,8 +20,10 @@ const api = {
     ipcRenderer.invoke('version:restore', documentId, commitId),
   openVersionCopy: (commitId: string) => ipcRenderer.invoke('version:openCopy', commitId),
 
-  createBranch: (documentId: string, name: string, fromCommitId: string) =>
-    ipcRenderer.invoke('branch:create', documentId, name, fromCommitId),
+  createBranch: (documentId: string, name: string, fromCommitId: string, reason?: string) =>
+    ipcRenderer.invoke('branch:create', documentId, name, fromCommitId, reason),
+  setBranchReason: (documentId: string, branchId: string, reason: string) =>
+    ipcRenderer.invoke('branch:reason', documentId, branchId, reason),
   switchBranch: (documentId: string, branchId: string) => ipcRenderer.invoke('branch:switch', documentId, branchId),
   renameBranch: (documentId: string, branchId: string, name: string) =>
     ipcRenderer.invoke('branch:rename', documentId, branchId, name),
@@ -37,6 +39,12 @@ const api = {
   setSharing: (documentId: string, shared: boolean, myName: string | null) =>
     ipcRenderer.invoke('docs:setSharing', documentId, shared, myName),
   addDocumentByPath: (path: string) => ipcRenderer.invoke('docs:addPath', path),
+  pathForFile: (file: File) => webUtils.getPathForFile(file),
+  addDocumentByPaths: (paths: string[]) => ipcRenderer.invoke('docs:addPaths', paths),
+  renameDocument: (documentId: string, newBaseName: string) =>
+    ipcRenderer.invoke('docs:rename', documentId, newBaseName),
+  deleteDocument: (documentId: string, opts: { trashFile: boolean }) =>
+    ipcRenderer.invoke('docs:delete', documentId, opts),
   connectGrist: (baseUrl: string, remoteDocId: string, apiKey?: string) =>
     ipcRenderer.invoke('grist:connect', baseUrl, remoteDocId, apiKey),
   syncRemote: (documentId: string) => ipcRenderer.invoke('remote:sync', documentId),

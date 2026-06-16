@@ -128,3 +128,41 @@ Planned fix, in order:
   `pnpm dist` sign automatically (notarization additionally needs the three
   `APPLE_*` variables exported). Without credentials, builds are unsigned —
   downloaders must right-click → Open the first time.
+
+## 6. Rename on disk
+
+- **Rename is all-or-nothing by design.** Renaming a tracked document moves
+  the real file on disk *and* updates the DocGit label in one step so the two
+  never drift. The filesystem move runs first; if the database update then
+  fails, the file is renamed back to its original path before the error is
+  surfaced. The document id (and its branch/version history) is never
+  recomputed — only `path`/`name` change — so history is preserved across a
+  rename. The original file extension is always kept.
+- **iCloud placeholders can fail the rename.** If the tracked file is an
+  un-downloaded iCloud placeholder ("Optimize Mac Storage"), the rename may
+  fail with a generic filesystem error. Because the move is attempted before
+  the database write, nothing changes when this happens — the document keeps
+  its old name. Re-download the file (open it once) and try again.
+- **Double-fault recovery (rare).** If the database write fails *and* the
+  rollback rename also fails, the file is stranded at its new path while the
+  record still holds the old one. DocGit re-points its file watcher at the
+  file's actual location so the document is never left unwatched, then surfaces
+  the original error. The library label may briefly disagree with the on-disk
+  name until the next successful action; re-adding the file reconciles it.
+
+## 7. Delete
+
+- **Delete is DocGit-first; the file is opt-in.** Removing a document always
+  deletes its DocGit history (cascade across sends/links/commits/branches/
+  remotes in one transaction) and stops watching it. The real file on disk is
+  only touched when "Also move the original file to the Trash" is checked, and
+  then via `shell.trashItem` (recoverable from the Finder Trash), never a
+  permanent unlink.
+- **Trash-first ordering.** When trashing, the file is moved to the Trash
+  *before* any DocGit state changes, so a failed trash (locked/missing file)
+  leaves the document fully tracked and watched. The only residual window —
+  near-pathological on a local SQLite store — is the reverse: the trash
+  succeeds and the database delete then fails, leaving the file recoverable in
+  the Trash while the document stays tracked (the watcher will report it
+  missing). This fails in the safe direction; re-adding or restoring the file
+  reconciles it.

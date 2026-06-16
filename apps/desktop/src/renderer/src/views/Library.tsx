@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { DocumentInfo } from '../../../preload/api';
 import { Modal } from '../components/Modal.js';
 
@@ -57,6 +57,27 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
   const countOf = (type: DocType) => documents.filter((d) => docTypeOf(d) === type).length;
 
   const [sharePrompt, setSharePrompt] = useState<{ docId: string; provider: string } | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null); // doc id whose ⋯ menu is open
+  const [renaming, setRenaming] = useState<DocumentInfo | null>(null);
+  const [deleting, setDeleting] = useState<DocumentInfo | null>(null);
+
+  // Dismiss the open row menu on outside-click or Escape, like the rest of the app.
+  useEffect(() => {
+    if (menuFor === null) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.row-menu') && !target.closest('.doc-row-menu')) setMenuFor(null);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuFor(null);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [menuFor]);
 
   const addDocument = async () => {
     const added = await window.docgit.addDocument();
@@ -67,8 +88,47 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
     if (cloud.provider) setSharePrompt({ docId: added.id, provider: cloud.provider });
   };
 
+  const SUPPORTED = ['.docx', '.xlsx', '.pptx'];
+  const [dragOver, setDragOver] = useState(false);
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const paths = Array.from(e.dataTransfer.files)
+      .map((f) => window.docgit.pathForFile(f))
+      .filter((p) => SUPPORTED.some((ext) => p.toLowerCase().endsWith(ext)));
+    if (paths.length === 0) return; // silently ignore unsupported drops
+    const added = await window.docgit.addDocumentByPaths(paths);
+    await onRefresh();
+    // Offer attribution for the first cloud-resident add, mirroring addDocument().
+    for (const doc of added) {
+      const cloud = await window.docgit.cloudStatus(doc.id);
+      if (cloud.provider) {
+        setSharePrompt({ docId: doc.id, provider: cloud.provider });
+        break;
+      }
+    }
+  };
+
   return (
-    <main className="library">
+    <main
+      className={`library${dragOver ? ' is-dragover' : ''}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget === e.target) setDragOver(false);
+      }}
+      onDrop={(e) => void onDrop(e)}
+    >
+      {dragOver && (
+        <div className="library-dropzone">
+          <div className="library-dropzone-inner">Drop Word, Excel or PowerPoint files to add</div>
+        </div>
+      )}
+      {renaming && <RenameDocDialog doc={renaming} onClose={() => setRenaming(null)} onDone={onRefresh} />}
+      {deleting && <DeleteDocDialog doc={deleting} onClose={() => setDeleting(null)} onDone={onRefresh} />}
       {sharePrompt && (
         <SharedDocDialog
           provider={sharePrompt.provider}
@@ -170,7 +230,7 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
               {visible.map((doc) => {
                 const type = DOC_TYPES.find((t) => t.id === docTypeOf(doc))!;
                 return (
-                  <li key={doc.id}>
+                  <li key={doc.id} className="doc-row-wrap">
                     <button
                       type="button"
                       className="doc-row"
@@ -204,6 +264,37 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
                         </span>
                       </span>
                     </button>
+                    <button
+                      type="button"
+                      className="doc-row-menu"
+                      aria-label="More"
+                      onClick={() => setMenuFor(menuFor === doc.id ? null : doc.id)}
+                    >
+                      ⋯
+                    </button>
+                    {menuFor === doc.id && (
+                      <div className="row-menu" onMouseLeave={() => setMenuFor(null)}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenaming(doc);
+                            setMenuFor(null);
+                          }}
+                        >
+                          Rename…
+                        </button>
+                        <button
+                          type="button"
+                          className="row-menu-danger"
+                          onClick={() => {
+                            setDeleting(doc);
+                            setMenuFor(null);
+                          }}
+                        >
+                          Delete…
+                        </button>
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -212,6 +303,114 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         </>
       )}
     </main>
+  );
+}
+
+function RenameDocDialog(props: { doc: DocumentInfo; onClose: () => void; onDone: () => Promise<void> }) {
+  const ext = props.doc.path.slice(props.doc.path.lastIndexOf('.'));
+  const initial = props.doc.name.replace(/\.[^.]+$/, '');
+  const [name, setName] = useState(initial);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await window.docgit.renameDocument(props.doc.id, name.trim());
+      await props.onDone();
+      props.onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^.*Error[^:]*:\s*/, '') : String(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title="Rename document" onClose={props.onClose}>
+      <p className="modal-hint">
+        This renames the file on your Mac too, so DocGit and Finder always match. The extension ({ext}) stays the same.
+      </p>
+      <input
+        autoFocus
+        className="input"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && name.trim()) void submit();
+        }}
+      />
+      {error && (
+        <p className="modal-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy || !name.trim()}
+          onClick={() => void submit()}
+        >
+          {busy ? 'Renaming…' : 'Rename'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function DeleteDocDialog(props: { doc: DocumentInfo; onClose: () => void; onDone: () => Promise<void> }) {
+  const [trashFile, setTrashFile] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await window.docgit.deleteDocument(props.doc.id, { trashFile });
+      await props.onDone();
+      props.onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^.*Error[^:]*:\s*/, '') : String(err));
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal title={`Remove “${props.doc.name}”?`} onClose={props.onClose}>
+      <p className="modal-hint">
+        This removes the document and its DocGit history. By default your file on disk is left alone.
+      </p>
+      <label className="modal-check">
+        <input type="checkbox" checked={trashFile} onChange={(e) => setTrashFile(e.target.checked)} />
+        Also move the original file to the Trash
+      </label>
+      {trashFile && props.doc.shared && (
+        <p className="modal-warn">This file is in a shared cloud folder — trashing it may remove it for others too.</p>
+      )}
+      {error && (
+        <p className="modal-error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className={`btn ${trashFile ? 'btn-danger' : 'btn-primary'}`}
+          disabled={busy}
+          onClick={() => void submit()}
+        >
+          {busy ? 'Removing…' : trashFile ? 'Remove & move file to Trash' : 'Remove from DocGit'}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -54,6 +54,10 @@ export interface DocgitApi {
   cloudStatus(documentId: string): Promise<CloudStatus>;
   setSharing(documentId: string, shared: boolean, myName: string | null): Promise<DocumentRow>;
   addDocumentByPath(path: string): Promise<DocumentRow>;
+  pathForFile(file: File): string;
+  addDocumentByPaths(paths: string[]): Promise<DocumentRow[]>;
+  renameDocument(documentId: string, newBaseName: string): Promise<DocumentRow>;
+  deleteDocument(documentId: string, opts: { trashFile: boolean }): Promise<void>;
   connectGrist(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow>;
   syncRemote(documentId: string): Promise<CommitResult | undefined>;
   openDocument(documentId: string): Promise<string>;
@@ -67,7 +71,8 @@ export interface DocgitApi {
   restoreVersion(documentId: string, commitId: string): Promise<CommitResult>;
   openVersionCopy(commitId: string): Promise<string>;
 
-  createBranch(documentId: string, name: string, fromCommitId: string): Promise<BranchRow>;
+  createBranch(documentId: string, name: string, fromCommitId: string, reason?: string): Promise<BranchRow>;
+  setBranchReason(documentId: string, branchId: string, reason: string): Promise<BranchRow>;
   switchBranch(documentId: string, branchId: string): Promise<BranchRow>;
   renameBranch(documentId: string, branchId: string, name: string): Promise<BranchRow>;
   setBranchColor(documentId: string, branchId: string, color: string): Promise<BranchRow>;

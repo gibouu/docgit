@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BranchRow, CommitRow, DocDiff, DocumentGraph, UpstreamStatus } from '@docgit/core';
 import type { CloudStatus, DocumentInfo } from '../../../preload/api';
 import { DiffView, HorizontalBranchGraph } from '@docgit/ui';
@@ -18,6 +18,7 @@ type DialogState =
   | { kind: 'restore'; commit: CommitRow; behind: number | null }
   | { kind: 'renameVersion'; commit: CommitRow }
   | { kind: 'renameBranch'; branch: BranchRow }
+  | { kind: 'branchReason'; branch: BranchRow }
   | { kind: 'cloudSwitch'; branchId: string; branchName: string }
   | null;
 
@@ -267,6 +268,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                         </span>
                       )}
                     </span>
+                    {branch.reason && <span className="branch-reason">{branch.reason}</span>}
                     {lastEditor && <span className="dock-branch-editor">last edit by {lastEditor}</span>}
                   </button>
                 </li>
@@ -301,6 +303,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
                 onSwitchTo={requestSwitch}
                 onRenameVersion={(c) => setDialog({ kind: 'renameVersion', commit: c })}
                 onRenameBranch={(b) => setDialog({ kind: 'renameBranch', branch: b })}
+                onSetReason={(b) => setDialog({ kind: 'branchReason', branch: b })}
                 onRecolor={(b, color) => void window.docgit.setBranchColor(doc.id, b.id, color)}
                 onArchive={(b, archived) => void window.docgit.setBranchArchived(doc.id, b.id, archived)}
                 onShowUpstream={showUpstreamChanges}
@@ -380,11 +383,21 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
           }}
         />
       )}
+      {dialog?.kind === 'branchReason' && (
+        <ReasonDialog
+          branch={dialog.branch}
+          onClose={() => setDialog(null)}
+          onSubmit={async (reason) => {
+            await window.docgit.setBranchReason(doc.id, dialog.branch.id, reason);
+            setDialog(null);
+          }}
+        />
+      )}
       {dialog?.kind === 'branch' && (
         <BranchDialog
           onClose={() => setDialog(null)}
-          onCreate={async (name) => {
-            const branch = await window.docgit.createBranch(doc.id, name, dialog.from.id);
+          onCreate={async (name, reason) => {
+            const branch = await window.docgit.createBranch(doc.id, name, dialog.from.id, reason);
             setDialog(null);
             // Jump straight onto the new branch so it's obvious you're now in it.
             setComparison(null);
@@ -455,6 +468,7 @@ function DetailsTab(props: {
   onSwitchTo: (branchId: string) => void;
   onRenameVersion: (c: CommitRow) => void;
   onRenameBranch: (b: BranchRow) => void;
+  onSetReason: (b: BranchRow) => void;
   onRecolor: (b: BranchRow, color: string) => void;
   onArchive: (b: BranchRow, archived: boolean) => void;
   onShowUpstream: (s: UpstreamStatus) => void;
@@ -476,15 +490,19 @@ function DetailsTab(props: {
     <div className="details-tab">
       <div className="details-main">
         <div className="version-details">
-          <h2>
-            {versionTitle(commit)}{' '}
-            {isAutoSaved(commit) && <span className="autosaved-tag">auto-saved</span>}{' '}
+          <div className="version-header">
+            <h2>
+              {versionTitle(commit)}{' '}
+              {isAutoSaved(commit) && <span className="autosaved-tag">auto-saved</span>}
+            </h2>
             {!readOnly && (
-              <button type="button" className="btn btn-mini" onClick={() => props.onRenameVersion(commit)}>
-                ✎ Rename
-              </button>
+              <OverflowMenu label="Version options">
+                <button type="button" role="menuitem" onClick={() => props.onRenameVersion(commit)}>
+                  Rename this version
+                </button>
+              </OverflowMenu>
             )}
-          </h2>
+          </div>
           {!isHead && (
             <p className="not-latest">⚠ Not the latest version of “{branch?.name}” — you're looking at history.</p>
           )}
@@ -499,8 +517,10 @@ function DetailsTab(props: {
               <dt>Branch</dt>
               <dd>
                 <span className="dg-branch-pill" style={{ ['--dg-pill' as string]: branch?.color }}>
+                  <span className="dg-branch-pill-dot" style={{ background: branch?.color }} />
                   {branch?.name}
                 </span>
+                {branch?.reason && <span className="dg-branch-pill-reason">{branch.reason}</span>}
               </dd>
             </div>
             {commit.author && (
@@ -564,14 +584,15 @@ function DetailsTab(props: {
               </>
             )}
             {!readOnly && (
-              <button type="button" className="btn" onClick={() => props.onBranch(commit)}>
+              <button type="button" className="btn btn-primary" onClick={() => props.onBranch(commit)}>
                 Branch from here
               </button>
             )}
-            <button type="button" className="btn" onClick={() => props.onSend(commit)}>
-              Mark as sent…
-            </button>
           </div>
+
+          <button type="button" className="link-action" onClick={() => props.onSend(commit)}>
+            Mark as sent…
+          </button>
 
           {isHead && branch && (
             <div className="branch-controls">
@@ -587,23 +608,38 @@ function DetailsTab(props: {
                 </>
               )}
               {!readOnly && (
-                <button type="button" className="btn btn-mini" onClick={() => props.onRenameBranch(branch)}>
-                  Rename branch
-                </button>
-              )}
-              {!readOnly && (
-                <select className="branch-color-pick" value={branch.color} title="Branch color" onChange={(e) => props.onRecolor(branch, e.target.value)}>
-                  {[...new Set([branch.color, ...SWATCHES])].map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {!readOnly && !isCurrentBranch && branch.id !== trunk?.id && (
-                <button type="button" className="btn btn-mini" onClick={() => props.onArchive(branch, !branch.archived)}>
-                  {branch.archived ? 'Unarchive' : 'Archive'}
-                </button>
+                <OverflowMenu label="Branch options" trigger="Branch ⋯">
+                  <button type="button" role="menuitem" onClick={() => props.onRenameBranch(branch)}>
+                    Rename
+                  </button>
+                  <button type="button" role="menuitem" onClick={() => props.onSetReason(branch)}>
+                    Reason{branch.reason ? `: ${branch.reason}` : '…'}
+                  </button>
+                  <div className="overflow-menu-section">Colour</div>
+                  <div
+                    className="swatch-row"
+                    role="group"
+                    aria-label="Branch colour"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {SWATCHES.map((c) => (
+                      <button
+                        type="button"
+                        key={c}
+                        className={`swatch${branch.color === c ? ' is-active' : ''}`}
+                        style={{ background: c }}
+                        aria-label={`Set colour${branch.color === c ? ' (current)' : ''}`}
+                        aria-pressed={branch.color === c}
+                        onClick={() => props.onRecolor(branch, c)}
+                      />
+                    ))}
+                  </div>
+                  {!isCurrentBranch && branch.id !== trunk?.id && (
+                    <button type="button" role="menuitem" onClick={() => props.onArchive(branch, !branch.archived)}>
+                      {branch.archived ? 'Unarchive' : 'Archive'}
+                    </button>
+                  )}
+                </OverflowMenu>
               )}
             </div>
           )}
@@ -744,6 +780,86 @@ function SentTab({ graph, onOpenVersion }: { graph: DocumentGraph; onOpenVersion
 
 const SWATCHES = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444', '#84cc16'];
 
+/**
+ * A small icon-triggered popover menu, dismissible by outside-click or Escape —
+ * mirrors the library row `.row-menu` pattern. `children` are the menu rows
+ * (real <button>s) and any swatch rows.
+ */
+function OverflowMenu(props: { label: string; trigger?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="overflow-menu-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="overflow-menu-trigger"
+        aria-label={props.label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {props.trigger ?? '⋯'}
+      </button>
+      {open && (
+        <div className="row-menu overflow-menu" role="menu" onClick={() => setOpen(false)}>
+          {props.children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReasonDialog(props: { branch: BranchRow; onClose: () => void; onSubmit: (reason: string) => Promise<void> }) {
+  const [reason, setReason] = useState(props.branch.reason ?? '');
+  return (
+    <Modal title={`Why does “${props.branch.name}” exist?`} onClose={props.onClose}>
+      <p className="modal-hint">A short label for this branch's purpose. Leave empty to clear it.</p>
+      <div className="branch-reason-presets">
+        {REASON_PRESETS.map((p) => (
+          <button type="button" key={p} className={`chip${reason === p ? ' is-active' : ''}`} onClick={() => setReason(p)}>
+            {p}
+          </button>
+        ))}
+      </div>
+      <input
+        autoFocus
+        className="input"
+        placeholder="Why this branch? (optional)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void props.onSubmit(reason.trim());
+        }}
+      />
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={props.onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => void props.onSubmit(reason.trim())}>
+          Save
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function NameDialog(props: {
   title: string;
   placeholder: string;
@@ -781,8 +897,12 @@ function NameDialog(props: {
   );
 }
 
-function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => Promise<void> }) {
+const REASON_PRESETS = ['Translation', 'Client revision', 'Experiment', 'Draft', 'Backup'];
+
+function BranchDialog(props: { onClose: () => void; onCreate: (name: string, reason?: string) => Promise<void> }) {
   const [name, setName] = useState('');
+  const [reason, setReason] = useState('');
+  const create = () => void props.onCreate(name.trim(), reason.trim() || undefined);
   return (
     <Modal title="Name this branch" onClose={props.onClose}>
       <p className="modal-hint">
@@ -796,14 +916,32 @@ function BranchDialog(props: { onClose: () => void; onCreate: (name: string) => 
         value={name}
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && name.trim()) void props.onCreate(name.trim());
+          if (e.key === 'Enter' && name.trim()) create();
         }}
+      />
+      <div className="branch-reason-presets">
+        {REASON_PRESETS.map((p) => (
+          <button
+            type="button"
+            key={p}
+            className={`chip${reason === p ? ' is-active' : ''}`}
+            onClick={() => setReason(p)}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+      <input
+        className="input"
+        placeholder="Why this branch? (optional)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
       />
       <div className="modal-actions">
         <button type="button" className="btn" onClick={props.onClose}>
           Cancel
         </button>
-        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={() => void props.onCreate(name.trim())}>
+        <button type="button" className="btn btn-primary" disabled={!name.trim()} onClick={create}>
           Create branch
         </button>
       </div>
