@@ -1,4 +1,5 @@
-import { strFromU8, unzipSync } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { safeUnzip } from './zip.js';
 
 /**
  * Read the editor's name embedded in an OOXML document.
@@ -12,7 +13,7 @@ import { strFromU8, unzipSync } from 'fflate';
 export function extractAuthor(bytes: Uint8Array): string | null {
   let xml: string;
   try {
-    const files = unzipSync(bytes);
+    const files = safeUnzip(bytes);
     const core = files['docProps/core.xml'];
     if (!core) return null;
     xml = strFromU8(core);

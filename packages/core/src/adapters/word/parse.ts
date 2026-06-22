@@ -1,4 +1,5 @@
-import { unzipSync, strFromU8 } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { safeUnzip } from '../zip.js';
 import { XMLParser } from 'fast-xml-parser';
 import type { Block, ParagraphBlock, TextDocModel } from '../../model/types.js';
 
@@ -54,7 +55,7 @@ function findChild(nodes: XNode[], tag: string): XNode | undefined {
 }
 
 export function parseDocx(data: Uint8Array): TextDocModel {
-  const files = unzipSync(data);
+  const files = safeUnzip(data);
   const documentXml = files['word/document.xml'];
   if (!documentXml) {
     throw new Error('Not a valid .docx file: missing word/document.xml');

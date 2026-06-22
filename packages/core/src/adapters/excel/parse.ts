@@ -1,4 +1,5 @@
-import { unzipSync, strFromU8 } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { safeUnzip } from '../zip.js';
 import { XMLParser } from 'fast-xml-parser';
 import type { CellValue, SheetModel, SpreadsheetModel } from '../../model/types.js';
 
@@ -71,7 +72,7 @@ function collectT(nodes: XNode[]): string {
 }
 
 export function parseXlsx(data: Uint8Array): SpreadsheetModel {
-  const files = unzipSync(data);
+  const files = safeUnzip(data);
   const workbookXml = files['xl/workbook.xml'];
   if (!workbookXml) throw new Error('Not a valid .xlsx file: missing xl/workbook.xml');
 
