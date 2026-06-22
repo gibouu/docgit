@@ -142,7 +142,9 @@ function AddLinkDialog({ documentId, onClose }: { documentId: string; onClose: (
       await window.docgit.createLink(documentId, {
         sourceDocumentId: sourceId,
         sheet,
-        cellRef: cellRef.toUpperCase(),
+        // Don't force upper-case: Grist refs are case-sensitive "ColumnId:rowId".
+        // The main process normalizes A1-style Excel refs (and leaves Grist refs).
+        cellRef: cellRef.trim(),
         format,
         search,
         occurrence: picked,
