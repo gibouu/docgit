@@ -20,6 +20,8 @@ export interface ShapeChange {
 
 export interface SlideChange {
   type: 'added' | 'removed' | 'modified' | 'moved' | 'unchanged';
+  /** True whenever the slide changed position, even if its shapes also changed. */
+  moved: boolean;
   slideId: string;
   /** 0-based position in the old deck (absent for added slides). */
   oldIndex?: number;
@@ -63,17 +65,20 @@ export function diffSlideModels(oldModel: PresentationModel, newModel: Presentat
       summary.slidesAdded++;
       const shapeChanges = slide.shapes.map((s) => ({ type: 'added' as const, name: s.name, newText: s.text }));
       summary.shapesChanged += shapeChanges.length; // an added slide's shapes are changes too
-      slideChanges.push({ type: 'added', slideId: slide.id, newIndex, shapeChanges });
+      slideChanges.push({ type: 'added', moved: false, slideId: slide.id, newIndex, shapeChanges });
       return;
     }
     const shapeChanges = diffShapes(old.slide.shapes, slide.shapes);
     summary.shapesChanged += shapeChanges.length;
+    // Movement and edits are independent signals: a reordered slide whose text
+    // also changed is BOTH moved and modified, and each is counted on its own.
     const moved = old.index !== newIndex;
-    const type = shapeChanges.length > 0 ? 'modified' : moved ? 'moved' : 'unchanged';
-    if (type === 'modified') summary.slidesModified++;
-    else if (type === 'moved') summary.slidesMoved++;
-    else summary.slidesUnchanged++;
-    slideChanges.push({ type, slideId: slide.id, oldIndex: old.index, newIndex, shapeChanges });
+    const modified = shapeChanges.length > 0;
+    if (moved) summary.slidesMoved++;
+    if (modified) summary.slidesModified++;
+    if (!moved && !modified) summary.slidesUnchanged++;
+    const type = modified ? 'modified' : moved ? 'moved' : 'unchanged';
+    slideChanges.push({ type, moved, slideId: slide.id, oldIndex: old.index, newIndex, shapeChanges });
   });
 
   oldModel.slides.forEach((slide, oldIndex) => {
@@ -81,36 +86,48 @@ export function diffSlideModels(oldModel: PresentationModel, newModel: Presentat
     summary.slidesRemoved++;
     const shapeChanges = slide.shapes.map((s) => ({ type: 'removed' as const, name: s.name, oldText: s.text }));
     summary.shapesChanged += shapeChanges.length; // a removed slide's shapes are changes too
-    slideChanges.push({ type: 'removed', slideId: slide.id, oldIndex, shapeChanges });
+    slideChanges.push({ type: 'removed', moved: false, slideId: slide.id, oldIndex, shapeChanges });
   });
 
   return { kind: 'slides', slideChanges, summary };
 }
 
 function diffShapes(oldShapes: SlideShape[], newShapes: SlideShape[]): ShapeChange[] {
-  const oldByName = new Map(oldShapes.map((s) => [s.name, s]));
-  const newByName = new Map(newShapes.map((s) => [s.name, s]));
+  // PowerPoint shape names aren't unique. Group old shapes by name into queues
+  // and match the k-th new "Body" to the k-th old "Body", so duplicates aren't
+  // collapsed (which would miss removals or mismatch edits).
+  const oldQueues = new Map<string, SlideShape[]>();
+  for (const s of oldShapes) {
+    const q = oldQueues.get(s.name);
+    if (q) q.push(s);
+    else oldQueues.set(s.name, [s]);
+  }
+  const matched = new Set<SlideShape>();
   const changes: ShapeChange[] = [];
 
   for (const shape of newShapes) {
-    const old = oldByName.get(shape.name);
+    const old = oldQueues.get(shape.name)?.shift();
     if (!old) {
       changes.push({ type: 'added', name: shape.name, newText: shape.text });
-    } else if (old.text !== shape.text) {
-      changes.push({
-        type: 'modified',
-        name: shape.name,
-        oldText: old.text,
-        newText: shape.text,
-        spans: diffWords(old.text, shape.text).map((part) => ({
-          text: part.value,
-          kind: part.added ? 'added' : part.removed ? 'removed' : 'same',
-        })),
-      });
+    } else {
+      matched.add(old);
+      if (old.text !== shape.text) {
+        changes.push({
+          type: 'modified',
+          name: shape.name,
+          oldText: old.text,
+          newText: shape.text,
+          spans: diffWords(old.text, shape.text).map((part) => ({
+            text: part.value,
+            kind: part.added ? 'added' : part.removed ? 'removed' : 'same',
+          })),
+        });
+      }
     }
   }
+  // Any old shape never matched is a removal, reported in original order.
   for (const shape of oldShapes) {
-    if (!newByName.has(shape.name)) changes.push({ type: 'removed', name: shape.name, oldText: shape.text });
+    if (!matched.has(shape)) changes.push({ type: 'removed', name: shape.name, oldText: shape.text });
   }
   return changes;
 }
