@@ -17,6 +17,7 @@ export function SettingsMenu({ version }: { version: string }) {
   const [update, setUpdate] = useState<UpdateState>({ status: 'idle' });
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [dataMsg, setDataMsg] = useState('');
+  const [saveError, setSaveError] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,13 +49,23 @@ export function SettingsMenu({ version }: { version: string }) {
             <input
               type="checkbox"
               checked={settings?.autoUpdate ?? true}
-              onChange={async (e) => setSettings(await window.docgit.setAutoUpdate(e.target.checked))}
+              onChange={async (e) => {
+                try {
+                  const next = await window.docgit.setAutoUpdate(e.target.checked);
+                  setSettings(next);
+                  setSaveError(next.persistError ? 'Couldn’t save this preference — it may reset when you relaunch DocGit.' : '');
+                } catch {
+                  setSaveError('Couldn’t save this preference — it may reset when you relaunch DocGit.');
+                }
+              }}
             />
             Automatic updates
           </label>
           <p className="settings-hint">
-            Checks GitHub for a new version on launch — the only time DocGit uses the network.
+            Checks GitHub for a new version on launch — the only network use DocGit starts on its own. (Connecting a
+            Grist document also uses the network, but only when you choose to.)
           </p>
+          {saveError && <p className="settings-hint settings-hint-warn">{saveError}</p>}
           <div className="settings-row settings-status">
             <span>{STATUS_LABEL[update.status]}{update.status === 'downloading' && update.percent != null ? ` ${update.percent}%` : ''}</span>
             <button type="button" className="btn btn-mini" onClick={() => void window.docgit.checkForUpdate()}>

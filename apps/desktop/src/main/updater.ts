@@ -37,7 +37,10 @@ export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): v
   const log = (msg: string) => appendLog(logPath, `updater ${msg}`);
 
   autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // Install ONLY when the user explicitly clicks "Restart to update"
+  // (quitAndInstall). "Later" then genuinely postpones — a downloaded update
+  // never installs on a surprise quit, which matters for a local-first tool.
+  autoUpdater.autoInstallOnAppQuit = false;
   const logger: Logger = { info: log, warn: log, error: log, debug: () => {} };
   autoUpdater.logger = logger;
 

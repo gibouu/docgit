@@ -182,14 +182,25 @@ function registerIpc(svc: DocumentService): void {
     settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null },
   );
   ipcMain.handle('update:setEnabled', (_e, enabled: boolean) => {
-    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null };
-    const next = settings.set('autoUpdate', enabled);
-    if (enabled) checkForUpdatesNow();
-    return next;
+    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null, persistError: false };
+    let persistError = false;
+    try {
+      settings.set('autoUpdate', enabled);
+    } catch {
+      persistError = true; // cache reflects the choice, but it couldn't be saved
+    }
+    if (enabled && !persistError) checkForUpdatesNow();
+    return { ...settings.get(), persistError };
   });
-  ipcMain.handle('update:markNoteSeen', () =>
-    settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null },
-  );
+  ipcMain.handle('update:markNoteSeen', () => {
+    if (!settings) return { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null };
+    try {
+      settings.set('seenUpdateNote', true);
+    } catch {
+      // a one-time note being shown again next launch is harmless
+    }
+    return settings.get();
+  });
 
   ipcMain.handle('backup:run', async () => {
     const res = await dialog.showSaveDialog(win!, {
@@ -600,6 +611,17 @@ async function runSmokeTest(): Promise<void> {
       throw new Error('corrupt settings should fall back to defaults');
     }
 
+    // #88: a settings write that can't persist throws (surfaced), not swallowed.
+    const notADir = join(dir, 'settings-not-a-dir');
+    writeFileSync(notADir, 'x'); // a file where Settings expects a directory
+    let settingsThrew = false;
+    try {
+      new Settings(notADir).set('autoUpdate', false);
+    } catch {
+      settingsThrew = true;
+    }
+    if (!settingsThrew) throw new Error('#88: settings.set must throw when it cannot persist');
+
     // #65: adding an unreadable file rolls back — no zero-version document left.
     const badPath = join(dir, 'not-a-doc.docx');
     writeFileSync(badPath, 'this is not a zip');
@@ -792,7 +814,11 @@ void app.whenReady().then(() => {
   if (previousVersion && previousVersion !== currentVersion) {
     pendingCleanup = findOldInstallers(app.getPath('downloads'));
   }
-  settings.set('lastRunVersion', currentVersion);
+  try {
+    settings.set('lastRunVersion', currentVersion);
+  } catch {
+    // non-critical: at worst the cleanup banner re-evaluates next launch
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
