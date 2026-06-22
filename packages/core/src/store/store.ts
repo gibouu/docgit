@@ -450,40 +450,46 @@ export class SnapshotStore {
     model: DocModel,
     opts: { message?: string; author?: string; coalesceWindowMs?: number } = {},
   ): CommitResult {
-    const doc = this.addDocument(filePath);
-    const branch = this.getBranch(doc.currentBranchId);
-    const modelJson = canonicalJson(model);
-    const modelHash = sha256(modelJson);
+    // One transaction for the whole snapshot: registering a never-seen document
+    // and writing its first commit are now atomic (the nested addDocument /
+    // insertCommit / replaceCommit calls join this tx via the re-entrancy
+    // guard), so a crash can never leave a document row with no commit.
+    return this.tx(() => {
+      const doc = this.addDocument(filePath);
+      const branch = this.getBranch(doc.currentBranchId);
+      const modelJson = canonicalJson(model);
+      const modelHash = sha256(modelJson);
 
-    const head = branch.headCommitId ? this.getCommit(branch.headCommitId) : undefined;
-    if (head && head.modelHash === modelHash) {
-      return { commit: head, created: false };
-    }
+      const head = branch.headCommitId ? this.getCommit(branch.headCommitId) : undefined;
+      if (head && head.modelHash === modelHash) {
+        return { commit: head, created: false };
+      }
 
-    const fileHash = sha256(fileBytes);
-    const payload = {
-      modelHash,
-      modelJson,
-      fileHash,
-      fileBytes,
-      message: opts.message ?? null,
-      // Prefer the editor embedded in the file; fall back to this user's own
-      // display name on a shared document.
-      author: opts.author ?? (doc.shared ? doc.myName : null),
-    };
+      const fileHash = sha256(fileBytes);
+      const payload = {
+        modelHash,
+        modelJson,
+        fileHash,
+        fileBytes,
+        message: opts.message ?? null,
+        // Prefer the editor embedded in the file; fall back to this user's own
+        // display name on a shared document.
+        author: opts.author ?? (doc.shared ? doc.myName : null),
+      };
 
-    if (
-      head &&
-      opts.coalesceWindowMs !== undefined &&
-      this.canCoalesce(head, payload.message, opts.coalesceWindowMs)
-    ) {
-      return { commit: this.replaceCommit(head, payload), created: true };
-    }
+      if (
+        head &&
+        opts.coalesceWindowMs !== undefined &&
+        this.canCoalesce(head, payload.message, opts.coalesceWindowMs)
+      ) {
+        return { commit: this.replaceCommit(head, payload), created: true };
+      }
 
-    return {
-      commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, payload),
-      created: true,
-    };
+      return {
+        commit: this.insertCommit(doc.id, branch.id, head?.id ?? null, payload),
+        created: true,
+      };
+    });
   }
 
   /** A head can be coalesced only when nothing observable depends on it. */
