@@ -179,10 +179,10 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('update:check', () => checkForUpdatesNow());
   ipcMain.handle('update:install', () => quitAndInstall());
   ipcMain.handle('update:settings', () =>
-    settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null },
+    settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null },
   );
   ipcMain.handle('update:setEnabled', (_e, enabled: boolean) => {
-    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null, persistError: false };
+    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null, persistError: false };
     let persistError = false;
     try {
       settings.set('autoUpdate', enabled);
@@ -193,7 +193,7 @@ function registerIpc(svc: DocumentService): void {
     return { ...settings.get(), persistError };
   });
   ipcMain.handle('update:markNoteSeen', () => {
-    if (!settings) return { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null };
+    if (!settings) return { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null, workspaceRoot: null };
     try {
       settings.set('seenUpdateNote', true);
     } catch {
@@ -247,6 +247,31 @@ function registerIpc(svc: DocumentService): void {
       }
     }
     pendingCleanup = pendingCleanup.filter((c) => !paths.includes(c.path));
+  });
+
+  // Workspace root (#52): the single folder whose disk tree the library mirrors.
+  ipcMain.handle('workspace:get', () => settings?.get().workspaceRoot ?? null);
+  ipcMain.handle('workspace:set', async () => {
+    const res = await dialog.showOpenDialog(win!, {
+      title: 'Choose your DocGit workspace folder',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (res.canceled || !res.filePaths[0]) return settings?.get().workspaceRoot ?? null;
+    const root = res.filePaths[0];
+    try {
+      settings?.set('workspaceRoot', root);
+    } catch {
+      // persistence is best-effort; the in-memory value still applies this session
+    }
+    return root;
+  });
+  ipcMain.handle('workspace:clear', () => {
+    try {
+      settings?.set('workspaceRoot', null);
+    } catch {
+      // best-effort
+    }
+    return null;
   });
 }
 

@@ -90,6 +90,10 @@ const api = {
 
   cleanupCandidates: () => ipcRenderer.invoke('cleanup:candidates'),
   trashOldInstallers: (paths: string[]) => ipcRenderer.invoke('cleanup:trash', paths),
+
+  getWorkspaceRoot: () => ipcRenderer.invoke('workspace:get'),
+  setWorkspaceRoot: () => ipcRenderer.invoke('workspace:set'),
+  clearWorkspaceRoot: () => ipcRenderer.invoke('workspace:clear'),
 };
 
 export type DocgitApi = typeof api;
