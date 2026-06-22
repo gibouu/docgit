@@ -116,7 +116,10 @@ details are in [`docs/TECH-NOTES.md`](TECH-NOTES.md).
 
 ## Privacy
 
-DocGit makes **no network calls of its own** — no servers, accounts, telemetry
-or analytics. Your documents and their entire history live only on your Mac, in
+DocGit's only network call of its own is the **update check**: on launch it asks
+GitHub Releases whether a newer version exists (switchable off under ⚙ Settings).
+Connecting a **Grist** document also uses the network, but only when you choose to.
+Otherwise there are no servers, accounts, telemetry or analytics — your documents
+and their entire history live only on your Mac, in
 `~/Library/Application Support/DocGit/`. The source is open under the
 [MIT license](../LICENSE), so anyone can verify it.

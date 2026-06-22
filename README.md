@@ -44,7 +44,7 @@ This is verifiable in the source: the codebase is open under the [MIT license](L
 | --- | --- |
 | `packages/core` | The engine: document adapters (OOXML → normalized model), content-addressed snapshot store (SQLite), diff engine, version graph. No UI. Includes a `docgit` CLI for testing. |
 | `apps/desktop` | macOS desktop app — the document hub. Open documents from the app, see the branch tree, diff any two versions, mark versions as sent. |
-| `apps/office-addin` | Office.js task-pane add-in for Word / Excel / PowerPoint. |
+| `apps/office-addin` | Office.js task-pane add-in for Word / Excel / PowerPoint — *planned (Milestone 3), not yet implemented*. |
 
 ## Development
 
