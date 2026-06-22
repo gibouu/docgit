@@ -86,4 +86,18 @@ describe('slides diff', () => {
       { type: 'added', name: 'Notes 1', newText: 'Speaker note' },
     ]);
   });
+
+  it('counts shapes of added and removed slides in shapesChanged (#108)', () => {
+    const before = { kind: 'slides' as const, slides: [{ id: '256', shapes: [] }] };
+    const after = {
+      kind: 'slides' as const,
+      slides: [
+        { id: '256', shapes: [] },
+        { id: '257', shapes: [{ name: 'a', text: 'x' }, { name: 'b', text: 'y' }] },
+      ],
+    };
+    const diff = diffModels(before, after);
+    if (diff.kind !== 'slides') throw new Error('expected a slides diff');
+    expect(diff.summary.shapesChanged).toBe(2); // both shapes of the added slide count
+  });
 });

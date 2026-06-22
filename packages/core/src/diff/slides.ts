@@ -61,12 +61,9 @@ export function diffSlideModels(oldModel: PresentationModel, newModel: Presentat
     const old = oldById.get(slide.id);
     if (!old) {
       summary.slidesAdded++;
-      slideChanges.push({
-        type: 'added',
-        slideId: slide.id,
-        newIndex,
-        shapeChanges: slide.shapes.map((s) => ({ type: 'added' as const, name: s.name, newText: s.text })),
-      });
+      const shapeChanges = slide.shapes.map((s) => ({ type: 'added' as const, name: s.name, newText: s.text }));
+      summary.shapesChanged += shapeChanges.length; // an added slide's shapes are changes too
+      slideChanges.push({ type: 'added', slideId: slide.id, newIndex, shapeChanges });
       return;
     }
     const shapeChanges = diffShapes(old.slide.shapes, slide.shapes);
@@ -82,12 +79,9 @@ export function diffSlideModels(oldModel: PresentationModel, newModel: Presentat
   oldModel.slides.forEach((slide, oldIndex) => {
     if (newIds.has(slide.id)) return;
     summary.slidesRemoved++;
-    slideChanges.push({
-      type: 'removed',
-      slideId: slide.id,
-      oldIndex,
-      shapeChanges: slide.shapes.map((s) => ({ type: 'removed' as const, name: s.name, oldText: s.text })),
-    });
+    const shapeChanges = slide.shapes.map((s) => ({ type: 'removed' as const, name: s.name, oldText: s.text }));
+    summary.shapesChanged += shapeChanges.length; // a removed slide's shapes are changes too
+    slideChanges.push({ type: 'removed', slideId: slide.id, oldIndex, shapeChanges });
   });
 
   return { kind: 'slides', slideChanges, summary };
