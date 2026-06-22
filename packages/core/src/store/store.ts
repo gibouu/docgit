@@ -644,6 +644,10 @@ export class SnapshotStore {
   restoreVersion(documentId: string, commitId: string, message?: string): CommitResult {
     const doc = this.getDocument(documentId);
     const source = this.getCommit(commitId);
+    // A version can only be restored onto its own document — mirrors the guard
+    // in createBranch. Without it a stray/malformed IPC call could overwrite
+    // one document with another's bytes and pollute its history.
+    if (source.documentId !== doc.id) throw new Error('Cannot restore a version from another document');
     const branch = this.getBranch(doc.currentBranchId);
     const head = branch.headCommitId ? this.getCommit(branch.headCommitId) : undefined;
     if (head && head.modelHash === source.modelHash) {

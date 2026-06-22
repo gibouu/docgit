@@ -597,6 +597,43 @@ async function runSmokeTest(): Promise<void> {
       throw new Error('corrupt settings should fall back to defaults');
     }
 
+    // #65: adding an unreadable file rolls back — no zero-version document left.
+    const badPath = join(dir, 'not-a-doc.docx');
+    writeFileSync(badPath, 'this is not a zip');
+    let addRejected = false;
+    try {
+      svc.addDocument(badPath);
+    } catch {
+      addRejected = true;
+    }
+    if (!addRejected) throw new Error('#65: adding an unparseable file should throw');
+    if (svc.listDocuments().some((d) => d.path === badPath)) throw new Error('#65: zero-version document left behind');
+
+    // #64: when the current file can't be snapshotted, restore aborts — no overwrite.
+    const guardPath = join(dir, 'guard.docx');
+    writeFileSync(guardPath, makeDocx(['guard v1']));
+    const guardDoc = svc.addDocument(guardPath);
+    const guardV1 = svc.getGraph(guardDoc.id).commits[0]!;
+    writeFileSync(guardPath, 'corrupt-not-a-zip'); // disk now unparseable
+    let restoreAborted = false;
+    try {
+      svc.restoreVersion(guardDoc.id, guardV1.id);
+    } catch {
+      restoreAborted = true;
+    }
+    if (!restoreAborted) throw new Error('#64: restore must abort when the safety snapshot fails');
+    if (readFileSync(guardPath, 'utf8') !== 'corrupt-not-a-zip') throw new Error('#64: file overwritten despite snapshot failure');
+
+    // #82: a rename with path separators is rejected and moves nothing.
+    let renameRejected = false;
+    try {
+      svc.renameDocument(guardDoc.id, '../escaped');
+    } catch {
+      renameRejected = true;
+    }
+    if (!renameRejected) throw new Error('#82: rename must reject path-separator names');
+    if (existsSync(join(dir, '..', 'escaped.docx'))) throw new Error('#82: rejected rename moved the file');
+
     // Live backup (store still open) must capture data despite WAL mode.
     {
       const { backupDatabase: liveBackup, assertDocgitDb: liveAssert } = await import('./backup.js');
@@ -643,16 +680,6 @@ async function runSmokeTest(): Promise<void> {
     if (installers.length !== 2) throw new Error(`cleanup: expected 2 installers, got ${installers.length}`);
     if (!installers.every((i) => /DocGit/i.test(i.path))) throw new Error('cleanup matched a non-DocGit file');
     rmSync(dlDir, { recursive: true, force: true });
-
-    // Rename safety (#82): a name with path separators is rejected and moves nothing.
-    let renameRejected = false;
-    try {
-      svc.renameDocument(doc.id, '../escaped');
-    } catch {
-      renameRejected = true;
-    }
-    if (!renameRejected) throw new Error('#82: rename must reject path-separator names');
-    if (existsSync(join(dir, '..', 'escaped.docx'))) throw new Error('#82: rejected rename moved the file');
 
     // Log rotation: once the file passes the cap, it rotates to <path>.1.
     const { appendLog } = await import('./log.js');
