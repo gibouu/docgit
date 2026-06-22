@@ -5,7 +5,7 @@ Git-like version control for office documents (Word, Excel, PowerPoint — plus 
 Two form factors sharing one core engine:
 
 1. **A standalone desktop app** — **macOS only for now, fully local.** The app is the hub: users open documents *from* the app and see all their documents through it. No git jargon or commands are ever exposed — it's a friendly file version tracker with a beautiful branch tree. Ease of use is the top priority.
-2. **An Office Add-in** (Office.js / manifest-based) inside Word, Excel and PowerPoint, so versioning, branching and diffing happen in the apps people already use.
+2. **An Office Add-in** (Office.js / manifest-based) — *planned (Milestone 3), not yet implemented* — inside Word, Excel and PowerPoint, so versioning, branching and diffing happen in the apps people already use.
 
 Both share a common core library (document parsing, diffing, version graph, storage) so features stay in sync.
 
