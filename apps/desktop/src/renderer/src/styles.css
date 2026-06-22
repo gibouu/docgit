@@ -1397,6 +1397,19 @@ body {
 .settings-status { justify-content: space-between; margin-top: 10px; }
 .settings-hint { margin: 6px 0 0; font-size: 11.5px; color: var(--dg-ink-soft); }
 .settings-hint-warn { color: var(--dg-danger); }
+.docview-action-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  color: var(--dg-danger);
+  background: var(--dg-danger-bg);
+  border: 1px solid var(--dg-danger-border);
+  border-radius: 8px;
+  font-size: 13px;
+}
 .settings-version { margin: 10px 0 0; font-size: 11px; color: var(--dg-ink-soft); }
 .settings-divider { height: 1px; background: var(--dg-hairline); margin: 12px 0 10px; }
 .settings-section-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--dg-ink-soft); margin-bottom: 8px; }
