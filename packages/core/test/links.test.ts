@@ -112,6 +112,19 @@ describe('word link surgery', () => {
     expect(() => refreshLinkedValue(doc, bad, 'x')).toThrow(/Invalid link id/);
   });
 
+  it('rejects a stale occurrence selection when the document changed (#96)', () => {
+    const docA = makeDocx(`<w:p><w:r><w:t>first 100</w:t></w:r></w:p><w:p><w:r><w:t>second 100</w:t></w:r></w:p>`);
+    const chosen = findLinkableOccurrences(docA, '100')[1]!; // the "second 100"
+    // The document changes: a new "100" is inserted before, shifting ordinals.
+    const docB = makeDocx(
+      `<w:p><w:r><w:t>zero 100</w:t></w:r></w:p><w:p><w:r><w:t>first 100</w:t></w:r></w:p><w:p><w:r><w:t>second 100</w:t></w:r></w:p>`,
+    );
+    // Old ordinal (1) now points at "first 100" — context mismatch → rejected.
+    expect(insertLinkedValue(docB, '100', 1, LINK_ID, 'X', chosen.context)).toBeNull();
+    // The occurrence whose context still matches is accepted.
+    expect(insertLinkedValue(docB, '100', 2, LINK_ID, 'X', chosen.context)).not.toBeNull();
+  });
+
   it('refreshes by exact id, not a prefix match (#106)', () => {
     // A link whose id has 'abc' as a prefix must not be hit by refreshing 'abc'.
     const linked = insertLinkedValue(doc, '1000000', 0, 'abcdef', '€1.0M')!;

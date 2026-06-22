@@ -102,15 +102,18 @@ function withDocumentXml(docx: Uint8Array, mutate: (xml: string) => string | nul
   return zipSync(files);
 }
 
+/** Stable fingerprint of an occurrence's surrounding text — used to detect a
+ * stale selection if the document changes between Find and Link it. */
+function contextOf(occ: RawOccurrence): string {
+  return `${occ.before.slice(-60)}«${occ.match}»${occ.after.slice(0, 60)}`;
+}
+
 export function findLinkableOccurrences(docx: Uint8Array, search: string): LinkableOccurrence[] {
   if (!search) return [];
   const files = unzipSync(docx);
   const part = files['word/document.xml'];
   if (!part) throw new Error('Not a valid .docx file: missing word/document.xml');
-  return scan(strFromU8(part), search).map((occ, i) => ({
-    occurrence: i,
-    context: `${occ.before.slice(-60)}«${occ.match}»${occ.after.slice(0, 60)}`,
-  }));
+  return scan(strFromU8(part), search).map((occ, i) => ({ occurrence: i, context: contextOf(occ) }));
 }
 
 /**
@@ -137,11 +140,16 @@ export function insertLinkedValue(
   occurrence: number,
   linkId: string,
   displayValue: string,
+  expectedContext?: string,
 ): Uint8Array | null {
   assertLinkId(linkId);
   return withDocumentXml(docx, (xml) => {
     const occ = scan(xml, search)[occurrence];
     if (!occ) return null;
+    // Guard against a stale selection: if the document changed since the picker
+    // ran, the same ordinal can point at different text. Reject when the
+    // surrounding-text fingerprint no longer matches what the user chose.
+    if (expectedContext !== undefined && contextOf(occ) !== expectedContext) return null;
     const run = (text: string) => `<w:r>${occ.rPr}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
     const sdt =
       `<w:sdt><w:sdtPr><w:alias w:val="DocGit linked value"/><w:tag w:val="docgit-link:${linkId}"/></w:sdtPr>` +
