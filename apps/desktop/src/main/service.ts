@@ -9,6 +9,7 @@ import {
   parseDocument,
   refreshLinkedValue,
   SnapshotStore,
+  SUPPORTED_EXTENSIONS,
   type BranchRow,
   type CommitResult,
   type CommitRow,
@@ -220,6 +221,41 @@ export class DocumentService {
   /** Track several files at once (drag-and-drop). Returns the resulting documents. */
   addDocuments(paths: string[]): DocumentRow[] {
     return paths.map((p) => this.addDocument(p));
+  }
+
+  /**
+   * Walk a workspace root for supported Office files and mark which are already
+   * tracked (#52/#157). The library shows the real folder contents: tracked
+   * files highlighted with their history, untracked ones clickable to start
+   * tracking. Bounded (depth + count) and resilient to unreadable folders.
+   */
+  scanWorkspace(root: string): { path: string; name: string; tracked: boolean }[] {
+    const tracked = new Set(this.store.listDocuments().map((d) => d.path));
+    const exts = SUPPORTED_EXTENSIONS as readonly string[];
+    const out: { path: string; name: string; tracked: boolean }[] = [];
+    const MAX = 5000;
+    const SKIP_DIRS = new Set(['node_modules', '.git', 'Library', '.Trash']);
+    const walk = (dir: string, depth: number): void => {
+      if (out.length >= MAX || depth > 8) return;
+      let entries: import('node:fs').Dirent[];
+      try {
+        entries = readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return; // unreadable folder — skip it, don't fail the whole scan
+      }
+      for (const entry of entries) {
+        if (out.length >= MAX) return;
+        if (entry.name.startsWith('.') || entry.name.startsWith('~$')) continue; // hidden + Office lock files
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (!SKIP_DIRS.has(entry.name)) walk(full, depth + 1);
+        } else if (entry.isFile() && exts.includes(extname(entry.name).toLowerCase())) {
+          out.push({ path: full, name: entry.name, tracked: tracked.has(full) });
+        }
+      }
+    };
+    walk(root, 0);
+    return out;
   }
 
   /**

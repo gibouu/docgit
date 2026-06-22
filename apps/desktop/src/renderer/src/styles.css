@@ -1418,3 +1418,35 @@ body {
 .settings-restore-confirm { margin-top: 8px; font-size: 12px; }
 .settings-restore-confirm p { margin: 0 0 8px; color: var(--dg-ink-soft); }
 .settings-restore-confirm code { font-size: 11px; }
+
+/* Workspace folder view (#52/#157) — real disk files, tracked highlighted */
+.workspace-view { padding: 4px 0 16px; }
+.workspace-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 16px; margin-bottom: 6px;
+  border-bottom: 1px solid var(--dg-rule, #eadfce);
+}
+.workspace-root { font-size: 12.5px; color: var(--dg-ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-bar-actions { display: flex; gap: 6px; flex: none; }
+.workspace-tree { padding: 2px 16px; }
+.ws-folder { display: flex; flex-direction: column; gap: 1px; }
+.ws-folder-header {
+  background: none; border: 0; text-align: left; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; color: var(--dg-ink, #2c2a26); padding: 6px 4px;
+}
+.ws-folder-caret { color: var(--dg-ink-soft); }
+.ws-folder-other { font-style: italic; color: var(--dg-ink-soft); padding: 6px 4px; }
+.ws-file {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: 7px 10px; margin: 1px 0; border-radius: 7px;
+  border: 1px solid transparent; background: none;
+}
+.ws-file-name { font-size: 13px; }
+.ws-file-meta { font-size: 11px; color: var(--dg-ink-soft); flex: none; }
+.ws-file-tracked { background: color-mix(in srgb, var(--dg-accent) 10%, transparent); border-color: color-mix(in srgb, var(--dg-accent) 28%, transparent); }
+.ws-file-tracked .ws-file-name { font-weight: 600; color: var(--dg-accent); }
+.ws-file-untracked { color: var(--dg-ink-soft); }
+.ws-file-untracked:hover { background: var(--dg-paper-raised, #fffdf9); border-color: var(--dg-rule, #eadfce); }
+.ws-file-untracked:disabled { opacity: 0.6; cursor: default; }
+.workspace-empty-hint { padding: 24px 16px; color: var(--dg-ink-soft); text-align: center; }

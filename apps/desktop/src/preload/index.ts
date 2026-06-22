@@ -94,6 +94,7 @@ const api = {
   getWorkspaceRoot: () => ipcRenderer.invoke('workspace:get'),
   setWorkspaceRoot: () => ipcRenderer.invoke('workspace:set'),
   clearWorkspaceRoot: () => ipcRenderer.invoke('workspace:clear'),
+  scanWorkspace: () => ipcRenderer.invoke('workspace:scan'),
 };
 
 export type DocgitApi = typeof api;

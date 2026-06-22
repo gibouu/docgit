@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DocumentInfo } from '../../../preload/api';
 import { Modal } from '../components/Modal.js';
 import { SettingsMenu } from '../components/SettingsMenu.js';
+import { WorkspaceFolders } from './WorkspaceFolders.js';
 
 /** Document families, color-coded throughout the library. */
 const DOC_TYPES = [
@@ -56,6 +57,16 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
   }, [documents, typeFilter, timeFilter]);
 
   const countOf = (type: DocType) => documents.filter((d) => docTypeOf(d) === type).length;
+
+  // Workspace folder (#52/#157): when sealed, the library shows that folder's
+  // real Office files (tracked highlighted, untracked one click from tracking).
+  const [workspaceRoot, setWorkspaceRoot] = useState<string | null>(null);
+  const reloadWorkspace = useCallback(async () => {
+    setWorkspaceRoot(await window.docgit.getWorkspaceRoot());
+  }, []);
+  useEffect(() => {
+    void reloadWorkspace();
+  }, [reloadWorkspace]);
 
   const [sharePrompt, setSharePrompt] = useState<{ docId: string; provider: string } | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null); // doc id whose ⋯ menu is open
@@ -149,6 +160,11 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         </div>
         <div className="library-actions">
           <SettingsMenu version="" />
+          {!workspaceRoot && (
+            <button type="button" className="btn" onClick={() => void window.docgit.setWorkspaceRoot().then(reloadWorkspace)}>
+              📁 Set workspace folder…
+            </button>
+          )}
           {documents.length > 0 && (
             <button type="button" className="btn" onClick={onShowHistory}>
               ✉ Sent history
@@ -173,7 +189,15 @@ export function Library({ documents, onOpen, onShowHistory, onRefresh }: Library
         />
       )}
 
-      {documents.length === 0 ? (
+      {workspaceRoot ? (
+        <WorkspaceFolders
+          root={workspaceRoot}
+          documents={documents}
+          onOpen={onOpen}
+          onRefresh={onRefresh}
+          onWorkspaceChanged={reloadWorkspace}
+        />
+      ) : documents.length === 0 ? (
         <div className="library-empty">
           <div className="library-empty-mark">❧</div>
           <h2>Start with one document</h2>
