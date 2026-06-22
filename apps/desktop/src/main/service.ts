@@ -25,7 +25,7 @@ import {
 import { shell } from 'electron';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, writeFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join } from 'node:path';
 
@@ -537,7 +537,7 @@ export class DocumentService {
     const id = randomUUID();
     const bytes = insertLinkedValue(readFileSync(doc.path), payload.search, payload.occurrence, id, display);
     if (!bytes) throw new Error('That text was not found anymore — the document changed. Try again.');
-    writeFileSync(doc.path, bytes);
+    this.writeFileAtomic(doc.path, bytes);
     this.commitPath(doc.path, `Linked ${payload.sheet}!${payload.cellRef} ← ${source.name}`);
 
     this.store.createLink({
@@ -589,7 +589,7 @@ export class DocumentService {
 
     if (changes.length > 0) {
       const sourceNames = [...new Set(links.map((l) => this.store.getDocument(l.sourceDocumentId).name))];
-      writeFileSync(doc.path, bytes);
+      this.writeFileAtomic(doc.path, bytes);
       this.commitPath(doc.path, `Updated from ${sourceNames.join(', ')} — ${changes.join('; ')}`);
     }
     this.onChanged(documentId);
@@ -684,7 +684,31 @@ export class DocumentService {
     if (isRemoteKey(doc.path)) return; // remote documents are never written back
     const commit = this.store.getCommit(commitId);
     this.log(`WRITE-TO-DISK ${basename(doc.path)} ← version ${commitId.slice(0, 8)} content=${commit.modelHash.slice(0, 8)}`);
-    writeFileSync(doc.path, this.store.getFileBytes(commit));
+    this.writeFileAtomic(doc.path, this.store.getFileBytes(commit));
+  }
+
+  /**
+   * Write a document back to disk crash-safely: stage the bytes in a sibling
+   * temp file, then rename it over the target. A rename within one directory is
+   * atomic, so a reader (or a crash) sees either the whole old file or the whole
+   * new one — never a half-written, corrupt document. This mirrors how Word
+   * itself saves (temp + rename), which is why the directory watcher already
+   * copes with it; the temp's name doesn't match the watched file, so it never
+   * triggers a spurious auto-commit.
+   */
+  private writeFileAtomic(filePath: string, data: Uint8Array): void {
+    const tmp = join(dirname(filePath), `.${basename(filePath)}.docgit-${randomUUID().slice(0, 8)}.tmp`);
+    try {
+      writeFileSync(tmp, data);
+      renameSync(tmp, filePath);
+    } catch (err) {
+      try {
+        if (existsSync(tmp)) unlinkSync(tmp);
+      } catch {
+        // best-effort temp cleanup; surface the original write error
+      }
+      throw err;
+    }
   }
 
   private watch(doc: DocumentRow): void {
