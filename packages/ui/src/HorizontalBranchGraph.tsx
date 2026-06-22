@@ -46,6 +46,7 @@ interface Label {
   y: number;
   isCurrent: boolean;
   above: boolean;
+  reason: string | null;
 }
 
 export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
@@ -113,6 +114,7 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
         y: tip.y + (above ? -18 : 20),
         isCurrent: branch.id === currentBranchId,
         above,
+        reason: branch.reason,
       });
     }
 
@@ -191,12 +193,14 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
             className={`dg-hgraph-label${label.isCurrent ? ' is-current' : ''}`}
             style={{ fill: label.color }}
             textAnchor="middle"
+            aria-label={`Branch ${label.name}${label.reason ? `, ${label.reason}` : ''}`}
             onPointerUp={(e) => {
               e.stopPropagation();
               if (!drag.current?.moved) onSelectBranch?.(label.branchId);
               endDrag(); // propagation stops here, so clear pan state ourselves
             }}
           >
+            {label.reason && <title>{`${label.name} — ${label.reason}`}</title>}
             {label.name}
           </text>
         ))}

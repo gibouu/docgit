@@ -167,7 +167,8 @@ export function BranchGraph(props: BranchGraphProps) {
                         role="button"
                         className={`dg-branch-pill dg-branch-pill-clickable${branch.id === currentBranchId ? ' is-current' : ''}`}
                         style={{ ['--dg-pill' as string]: branch.color }}
-                        title={branch.id === currentBranchId ? 'You are working on this branch' : `Work on “${branch.name}”`}
+                        title={`${branch.id === currentBranchId ? 'You are working on this branch' : `Work on “${branch.name}”`}${branch.reason ? ` — ${branch.reason}` : ''}`}
+                        aria-label={`Branch ${branch.name}${branch.reason ? `, ${branch.reason}` : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectBranch?.(branch.id);

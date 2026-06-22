@@ -58,7 +58,7 @@ function TextDiffView({ diff, oldLabel, newLabel }: { diff: TextDiff; oldLabel: 
         <span className="dg-chip dg-chip-quiet">{summary.unchanged} unchanged</span>
       </header>
 
-      <div className="dg-diff-columns" aria-hidden>
+      <div className="dg-diff-columns">
         <div className="dg-diff-col-label">{oldLabel}</div>
         <div className="dg-diff-col-label">{newLabel}</div>
       </div>
@@ -194,7 +194,7 @@ function SlidesDiffView({ diff, oldLabel, newLabel }: { diff: SlidesDiff; oldLab
         <span className="dg-chip dg-chip-quiet">{summary.slidesUnchanged} unchanged</span>
       </header>
 
-      <div className="dg-diff-columns" aria-hidden>
+      <div className="dg-diff-columns">
         <div className="dg-diff-col-label">{oldLabel}</div>
         <div className="dg-diff-col-label">{newLabel}</div>
       </div>
