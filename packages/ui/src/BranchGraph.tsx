@@ -165,6 +165,7 @@ export function BranchGraph(props: BranchGraphProps) {
                       <span
                         key={branch.id}
                         role="button"
+                        tabIndex={0}
                         className={`dg-branch-pill dg-branch-pill-clickable${branch.id === currentBranchId ? ' is-current' : ''}`}
                         style={{ ['--dg-pill' as string]: branch.color }}
                         title={`${branch.id === currentBranchId ? 'You are working on this branch' : `Work on “${branch.name}”`}${branch.reason ? ` — ${branch.reason}` : ''}`}
@@ -172,6 +173,13 @@ export function BranchGraph(props: BranchGraphProps) {
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectBranch?.(branch.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onSelectBranch?.(branch.id);
+                          }
                         }}
                       >
                         {branch.name}
