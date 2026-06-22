@@ -88,6 +88,27 @@ describe('SnapshotStore', () => {
     expect(() => store.getDocument(doc.id)).toThrow();
     expect(store.listDocuments().some((d) => d.id === doc.id)).toBe(false);
   });
+
+  it('reclaims unreferenced object blobs when a document is deleted', () => {
+    const bytes = docxFromParagraphs(['unique confidential content']);
+    store.commit('/Users/test/secret.docx', bytes, parseDocx(bytes));
+    expect(store.storageBytes()).toBeGreaterThan(0);
+    store.deleteDocument(store.getDocumentByPath('/Users/test/secret.docx')!.id);
+    // Nothing else references those blobs — the bytes are actually gone.
+    expect(store.storageBytes()).toBe(0);
+  });
+
+  it('keeps blobs that another document still references on delete', () => {
+    const bytes = docxFromParagraphs(['shared content']);
+    store.commit('/Users/test/a.docx', bytes, parseDocx(bytes));
+    store.commit('/Users/test/b.docx', bytes, parseDocx(bytes));
+    const before = store.storageBytes();
+    store.deleteDocument(store.getDocumentByPath('/Users/test/a.docx')!.id);
+    expect(store.storageBytes()).toBe(before); // b still references the shared blobs
+    const b = store.getDocumentByPath('/Users/test/b.docx')!;
+    const head = store.getCommit(store.getBranch(b.currentBranchId).headCommitId!);
+    expect(parseDocx(store.getFileBytes(head))).toEqual(parseDocx(bytes)); // b still reconstructs
+  });
 });
 
 describe('SnapshotStore transactions', () => {

@@ -70,7 +70,22 @@ export function blockText(block: Block): string {
   return block.rows.map((row) => row.join(' | ')).join('\n');
 }
 
-/** Deterministic serialization used for content-addressing models. */
+/**
+ * Deterministic serialization used for content-addressing models. Object keys
+ * are emitted in sorted order so map-like records (e.g. a sheet's cells) hash
+ * by content, not by parser/construction insertion order; array order is
+ * preserved (sheets, blocks, and slides are ordered, not sets).
+ */
 export function canonicalJson(model: DocModel): string {
-  return JSON.stringify(model);
+  return stableStringify(model);
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj)
+    .filter((k) => obj[k] !== undefined) // match JSON.stringify: skip undefined-valued keys
+    .sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
 }

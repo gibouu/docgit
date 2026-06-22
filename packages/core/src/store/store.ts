@@ -454,7 +454,25 @@ export class SnapshotStore {
       this.db.prepare('DELETE FROM branches WHERE document_id = ?').run(documentId);
       this.db.prepare('DELETE FROM remotes WHERE document_id = ?').run(documentId);
       this.db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
+      this.collectGarbage();
     });
+  }
+
+  /**
+   * Drop content-addressed rows no commit references any more, so deleting a
+   * document actually reclaims its bytes (and doesn't leave recoverable content
+   * behind). Safe because everything is shared/deduped: a blob or manifest is
+   * removed only when NOTHING still points at it. Manifests go first so their
+   * part references stop counting before the object sweep.
+   */
+  private collectGarbage(): void {
+    this.db.exec('DELETE FROM file_parts WHERE manifest_hash NOT IN (SELECT file_hash FROM commits)');
+    this.db.exec(`
+      DELETE FROM objects
+      WHERE hash NOT IN (SELECT model_hash FROM commits)
+        AND hash NOT IN (SELECT file_hash FROM commits)
+        AND hash NOT IN (SELECT part_hash FROM file_parts)
+    `);
   }
 
   getDocumentByPath(filePath: string): DocumentRow | undefined {
