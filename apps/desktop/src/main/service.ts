@@ -593,6 +593,10 @@ export class DocumentService {
     }
 
     const changes: string[] = [];
+    // Registry advances are staged and only applied AFTER the document is
+    // written and committed — so a failed write/commit can't leave the registry
+    // claiming a link is current while the document still holds the old value.
+    const pendingUpdates: { id: string; value: string; sourceCommitId: string }[] = [];
     for (const link of links) {
       const sourceHead = this.headCommit(link.sourceDocumentId);
       if (!sourceHead) continue;
@@ -605,14 +609,16 @@ export class DocumentService {
         bytes = refreshed.bytes;
         changes.push(`${link.sheet}!${link.cellRef}: ${refreshed.oldValue} → ${display}`);
       }
-      this.store.updateLinkValue(link.id, display, sourceHead.id);
+      pendingUpdates.push({ id: link.id, value: display, sourceCommitId: sourceHead.id });
     }
 
     if (changes.length > 0) {
       const sourceNames = [...new Set(links.map((l) => this.store.getDocument(l.sourceDocumentId).name))];
-      this.writeFileAtomic(doc.path, bytes);
+      this.writeFileAtomic(doc.path, bytes); // throws → we exit before touching the registry
       this.commitPath(doc.path, `Updated from ${sourceNames.join(', ')} — ${changes.join('; ')}`);
     }
+    // Document is safely persisted (or there was nothing to write) — advance the registry now.
+    for (const update of pendingUpdates) this.store.updateLinkValue(update.id, update.value, update.sourceCommitId);
     this.onChanged(documentId);
     return changes.length;
   }

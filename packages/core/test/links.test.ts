@@ -91,4 +91,18 @@ describe('word link surgery', () => {
     const refreshed = refreshLinkedValue(linked, LINK_ID, '"$5" <ok>')!;
     expect(parseDocx(refreshed.bytes).blocks[1]).toMatchObject({ text: 'We forecast revenue of "$5" <ok> in 2027.' });
   });
+
+  it('rejects link ids outside the supported grammar (#106)', () => {
+    const bad = 'abc"/><script>';
+    expect(() => insertLinkedValue(doc, '1000000', 0, bad, 'x')).toThrow(/Invalid link id/);
+    expect(() => refreshLinkedValue(doc, bad, 'x')).toThrow(/Invalid link id/);
+  });
+
+  it('refreshes by exact id, not a prefix match (#106)', () => {
+    // A link whose id has 'abc' as a prefix must not be hit by refreshing 'abc'.
+    const linked = insertLinkedValue(doc, '1000000', 0, 'abcdef', '€1.0M')!;
+    expect(refreshLinkedValue(linked, 'abc', 'WRONG')).toBeNull(); // no exact 'abc' control
+    const right = refreshLinkedValue(linked, 'abcdef', '€2.0M')!;
+    expect(parseDocx(right.bytes).blocks[1]).toMatchObject({ text: 'We forecast revenue of €2.0M in 2027.' });
+  });
 });

@@ -118,6 +118,19 @@ export function findLinkableOccurrences(docx: Uint8Array, search: string): Linka
  * matched text with `displayValue`. Returns null when the occurrence no
  * longer exists (document changed since the picker was shown).
  */
+/**
+ * The one supported link-id grammar (lowercase hex + hyphens, as produced by
+ * randomUUID and recognized by listLinkIds). Ids are interpolated into XML
+ * attributes and used as search keys, so anything outside this grammar — XML
+ * metacharacters, whitespace — is rejected rather than escaped, keeping
+ * insert / refresh / list perfectly consistent.
+ */
+const LINK_ID_RE = /^[0-9a-f-]+$/;
+
+function assertLinkId(linkId: string): void {
+  if (!LINK_ID_RE.test(linkId)) throw new Error(`Invalid link id: ${JSON.stringify(linkId)}`);
+}
+
 export function insertLinkedValue(
   docx: Uint8Array,
   search: string,
@@ -125,6 +138,7 @@ export function insertLinkedValue(
   linkId: string,
   displayValue: string,
 ): Uint8Array | null {
+  assertLinkId(linkId);
   return withDocumentXml(docx, (xml) => {
     const occ = scan(xml, search)[occurrence];
     if (!occ) return null;
@@ -147,9 +161,12 @@ export function refreshLinkedValue(
   linkId: string,
   newValue: string,
 ): { bytes: Uint8Array; oldValue: string } | null {
+  assertLinkId(linkId);
   let oldValue = '';
   const bytes = withDocumentXml(docx, (xml) => {
-    const tagIdx = xml.indexOf(`docgit-link:${linkId}`);
+    // Match the exact tag value (note the trailing quote that closes the
+    // w:val attribute) so a short id can't prefix-match a longer one's control.
+    const tagIdx = xml.indexOf(`docgit-link:${linkId}"`);
     if (tagIdx < 0) return null;
     const contentStart = xml.indexOf('<w:sdtContent>', tagIdx);
     const contentEnd = xml.indexOf('</w:sdtContent>', contentStart);
