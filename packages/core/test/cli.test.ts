@@ -12,7 +12,12 @@ const CLI = fileURLToPath(new URL('../dist/cli.js', import.meta.url));
 describe('docgit CLI', () => {
   let dir: string;
   const run = (args: string[]): string =>
-    execFileSync('node', [CLI, ...args], { env: { ...process.env, DOCGIT_DIR: dir }, encoding: 'utf8' });
+    execFileSync('node', [CLI, ...args], {
+      // NO_COLOR keeps output plain — picocolors otherwise emits ANSI when CI is
+      // set (GitHub Actions), which would break id parsing.
+      env: { ...process.env, DOCGIT_DIR: dir, NO_COLOR: '1' },
+      encoding: 'utf8',
+    });
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'docgit-cli-'));
