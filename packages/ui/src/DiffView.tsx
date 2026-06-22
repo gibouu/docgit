@@ -322,10 +322,12 @@ function DiffRowView({ change }: { change: Change }) {
         </div>
       );
     case 'modified':
+      // Fall back to the plain block text when word-level spans aren't present,
+      // so a valid modified block never renders as an empty row.
       return (
         <div className="dg-diff-row">
-          <div className="dg-cell dg-cell-mod-old">{renderSpans(change.spans, 'old')}</div>
-          <div className="dg-cell dg-cell-mod-new">{renderSpans(change.spans, 'new')}</div>
+          <div className="dg-cell dg-cell-mod-old">{change.spans ? renderSpans(change.spans, 'old') : oldText}</div>
+          <div className="dg-cell dg-cell-mod-new">{change.spans ? renderSpans(change.spans, 'new') : newText}</div>
         </div>
       );
   }

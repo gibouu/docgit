@@ -78,6 +78,12 @@ function blocksFromBody(nodes: XNode[]): Block[] {
       blocks.push(parseParagraph(node));
     } else if (tag === 'w:tbl') {
       blocks.push(parseTable(node));
+    } else if (tag === 'w:sdt') {
+      // Block-level content control (form field / protected region) wrapping
+      // paragraphs or tables: descend into its content so the controlled text
+      // is modeled, not dropped.
+      const content = findChild(childrenOf(node), 'w:sdtContent');
+      if (content) blocks.push(...blocksFromBody(childrenOf(content)));
     }
     // w:sectPr and other section-level nodes carry no content — skipped.
   }
@@ -127,6 +133,10 @@ function collectRunText(nodes: XNode[]): string {
       case 'w:pPr':
       case 'w:del':
       case 'w:delText':
+      // A tracked move's source (w:moveFrom) is deleted content in the final
+      // state — only the destination (w:moveTo, kept via the default recurse)
+      // remains, so the moved text isn't duplicated.
+      case 'w:moveFrom':
         break;
       case 'w:t':
         text += textContent(node);
@@ -162,6 +172,14 @@ function parseTable(tbl: XNode): Block {
           const nested = parseTable(inner);
           if (nested.type === 'table') {
             cellParagraphs.push(nested.rows.map((r) => r.join(' | ')).join('\n'));
+          }
+        } else if (innerTag === 'w:sdt') {
+          // Content control wrapping cell content: descend and flatten to text.
+          const content = findChild(childrenOf(inner), 'w:sdtContent');
+          if (content) {
+            for (const b of blocksFromBody(childrenOf(content))) {
+              cellParagraphs.push(b.type === 'paragraph' ? b.text : b.rows.map((r) => r.join(' | ')).join('\n'));
+            }
           }
         }
       }
