@@ -63,6 +63,8 @@ export interface CreateLinkPayload {
   format: ValueFormat;
   search: string;
   occurrence: number;
+  /** Surrounding-text fingerprint of the chosen occurrence, to reject a stale selection. */
+  expectedContext?: string;
 }
 
 /**
@@ -556,7 +558,7 @@ export class DocumentService {
     this.snapshotDiskBeforeOverwrite(documentId);
 
     const id = randomUUID();
-    const bytes = insertLinkedValue(readFileSync(doc.path), payload.search, payload.occurrence, id, display);
+    const bytes = insertLinkedValue(readFileSync(doc.path), payload.search, payload.occurrence, id, display, payload.expectedContext);
     if (!bytes) throw new Error('That text was not found anymore — the document changed. Try again.');
     this.writeFileAtomic(doc.path, bytes);
     this.commitPath(doc.path, `Linked ${payload.sheet}!${payload.cellRef} ← ${source.name}`);

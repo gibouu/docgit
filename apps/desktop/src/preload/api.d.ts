@@ -45,6 +45,8 @@ export interface CreateLinkPayload {
   format: ValueFormat;
   search: string;
   occurrence: number;
+  /** Surrounding-text fingerprint of the chosen occurrence, to reject a stale selection. */
+  expectedContext?: string;
 }
 
 export interface UpdateState {

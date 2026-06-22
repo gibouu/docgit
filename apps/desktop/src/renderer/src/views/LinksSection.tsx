@@ -146,6 +146,9 @@ function AddLinkDialog({ documentId, onClose }: { documentId: string; onClose: (
         format,
         search,
         occurrence: picked,
+        // Fingerprint of the chosen occurrence — main rejects it if the document
+        // changed since the picker ran (stale ordinal would link the wrong text).
+        expectedContext: occurrences?.find((o) => o.occurrence === picked)?.context,
       });
       onClose();
     } catch (err) {
