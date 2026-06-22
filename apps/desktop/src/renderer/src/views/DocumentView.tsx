@@ -62,6 +62,22 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
     setCloud(await window.docgit.cloudStatus(doc.id));
   }, [doc.id]);
 
+  // Shared busy/error wrapper for high-impact actions (branch switch, restore,
+  // create branch, sync) so a rejected IPC call never fails silently.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const runAction = useCallback(async (fn: () => Promise<unknown>) => {
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Something went wrong — please try again.');
+    } finally {
+      setActionBusy(false);
+    }
+  }, []);
+
   const [justCaptured, setJustCaptured] = useState(false);
   useEffect(() => {
     void refresh();
@@ -126,7 +142,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
     if (branchId === graph.document.currentBranchId) return;
     const branch = graph.branches.find((b) => b.id === branchId);
     if (cloud.provider) setDialog({ kind: 'cloudSwitch', branchId, branchName: branch?.name ?? 'branch' });
-    else void window.docgit.switchBranch(doc.id, branchId);
+    else void runAction(() => window.docgit.switchBranch(doc.id, branchId));
   };
 
   const runCompare = async (fromId: string, toId: string, labels?: { from: string; to: string }) => {
@@ -167,6 +183,14 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
 
   return (
     <main className="docview">
+      {actionError && (
+        <div className="docview-action-error" role="alert">
+          <span>{actionError}</span>
+          <button type="button" className="btn btn-mini" onClick={() => setActionError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       <header className="docview-header">
         <button type="button" className="btn btn-ghost" onClick={onBack}>
           ‹ All documents
@@ -199,7 +223,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             </span>
           )}
           {doc.remoteKind && (
-            <button type="button" className="btn" onClick={() => void window.docgit.syncRemote(doc.id)}>
+            <button type="button" className="btn" disabled={actionBusy} onClick={() => void runAction(() => window.docgit.syncRemote(doc.id))}>
               Sync now
             </button>
           )}
@@ -348,7 +372,7 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
               type="button"
               className="btn btn-primary"
               onClick={() => {
-                void window.docgit.switchBranch(doc.id, dialog.branchId);
+                void runAction(() => window.docgit.switchBranch(doc.id, dialog.branchId));
                 setDialog(null);
               }}
             >
@@ -437,8 +461,8 @@ export function DocumentView({ document: doc, onBack, initialSelectedId }: Docum
             <button
               type="button"
               className="btn btn-primary"
-              onClick={async () => {
-                await window.docgit.restoreVersion(doc.id, dialog.commit.id);
+              onClick={() => {
+                void runAction(() => window.docgit.restoreVersion(doc.id, dialog.commit.id));
                 setDialog(null);
                 setSelectedIds([]);
               }}
