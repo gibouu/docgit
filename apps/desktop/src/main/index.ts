@@ -5,6 +5,7 @@ import { detectCloudProvider, DocumentService } from './service.js';
 import { Settings } from './settings.js';
 import { backupDatabase, restoreDatabase, assertDocgitDb } from './backup.js';
 import { initUpdater, getUpdateState, checkForUpdatesNow, quitAndInstall, type UpdateState } from './updater.js';
+import { findOldInstallers, type OldInstaller } from './cleanup.js';
 
 // One identity everywhere (dev and packaged): data lives under
 // ~/Library/Application Support/DocGit.
@@ -31,6 +32,8 @@ function migrateLegacyData(): void {
 let service: DocumentService | null = null;
 let win: BrowserWindow | null = null;
 let settings: Settings;
+/** Leftover installers found after a version bump; the renderer offers to trash them. */
+let pendingCleanup: OldInstaller[] = [];
 
 function notifyRenderer(documentId: string): void {
   win?.webContents.send('docgit:changed', documentId);
@@ -172,15 +175,17 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('update:getState', () => getUpdateState());
   ipcMain.handle('update:check', () => checkForUpdatesNow());
   ipcMain.handle('update:install', () => quitAndInstall());
-  ipcMain.handle('update:settings', () => (settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false }));
+  ipcMain.handle('update:settings', () =>
+    settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null },
+  );
   ipcMain.handle('update:setEnabled', (_e, enabled: boolean) => {
-    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false };
+    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null };
     const next = settings.set('autoUpdate', enabled);
     if (enabled) checkForUpdatesNow();
     return next;
   });
   ipcMain.handle('update:markNoteSeen', () =>
-    settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true },
+    settings ? settings.set('seenUpdateNote', true) : { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null },
   );
 
   ipcMain.handle('backup:run', async () => {
@@ -212,6 +217,22 @@ function registerIpc(svc: DocumentService): void {
 
   ipcMain.handle('data:reveal', () => {
     shell.showItemInFolder(join(app.getPath('userData'), 'docgit.db'));
+  });
+
+  ipcMain.handle('cleanup:candidates', () => pendingCleanup);
+  ipcMain.handle('cleanup:trash', async (_e, paths: string[]) => {
+    // Only ever trash paths we actually offered — the renderer can't ask us to
+    // delete an arbitrary file. Moves to Trash (recoverable), never unlinks.
+    const offered = new Set(pendingCleanup.map((c) => c.path));
+    for (const path of paths) {
+      if (!offered.has(path)) continue;
+      try {
+        await shell.trashItem(path);
+      } catch {
+        // already gone or no permission — drop it from the list regardless
+      }
+    }
+    pendingCleanup = pendingCleanup.filter((c) => !paths.includes(c.path));
   });
 }
 
@@ -612,6 +633,17 @@ async function runSmokeTest(): Promise<void> {
     }
     if (!rejected) throw new Error('assertDocgitDb should reject a non-DocGit file');
 
+    // Old-installer detection (update-cleanup): only DocGit *.dmg/*.zip are
+    // surfaced; unrelated files in the same folder are left alone.
+    const dlDir = mkdtempSync(join(tmpdir(), 'docgit-downloads-'));
+    writeFileSync(join(dlDir, 'DocGit-0.9.0.dmg'), 'x');
+    writeFileSync(join(dlDir, 'DocGit-0.9.0-mac.zip'), 'x');
+    writeFileSync(join(dlDir, 'NotDocGit-notes.txt'), 'x');
+    const installers = findOldInstallers(dlDir);
+    if (installers.length !== 2) throw new Error(`cleanup: expected 2 installers, got ${installers.length}`);
+    if (!installers.every((i) => /DocGit/i.test(i.path))) throw new Error('cleanup matched a non-DocGit file');
+    rmSync(dlDir, { recursive: true, force: true });
+
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
     app.exit(0);
   } catch (err) {
@@ -691,6 +723,16 @@ void app.whenReady().then(() => {
 
   settings = new Settings(app.getPath('userData'));
   initUpdater(sendUpdateState, join(app.getPath('userData'), 'activity.log'), settings.get().autoUpdate);
+
+  // After a fresh update, offer to move the now-useless installer(s) out of
+  // Downloads. Gated on an actual version change so we never nag on a normal
+  // relaunch, and skipped on the very first run (no prior version recorded).
+  const previousVersion = settings.get().lastRunVersion;
+  const currentVersion = app.getVersion();
+  if (previousVersion && previousVersion !== currentVersion) {
+    pendingCleanup = findOldInstallers(app.getPath('downloads'));
+  }
+  settings.set('lastRunVersion', currentVersion);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

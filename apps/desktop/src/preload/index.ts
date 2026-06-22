@@ -87,6 +87,9 @@ const api = {
   runBackup: () => ipcRenderer.invoke('backup:run'),
   restoreBackup: () => ipcRenderer.invoke('backup:restore'),
   revealDataFolder: () => ipcRenderer.invoke('data:reveal'),
+
+  cleanupCandidates: () => ipcRenderer.invoke('cleanup:candidates'),
+  trashOldInstallers: (paths: string[]) => ipcRenderer.invoke('cleanup:trash', paths),
 };
 
 export type DocgitApi = typeof api;

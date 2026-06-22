@@ -4,6 +4,7 @@ import { Library } from './views/Library.js';
 import { DocumentView } from './views/DocumentView.js';
 import { SentHistory } from './views/SentHistory.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
+import { CleanupBanner } from './components/CleanupBanner.js';
 import { Modal } from './components/Modal.js';
 
 type Route =
@@ -34,6 +35,7 @@ export function App() {
   return (
     <div className="app">
       <UpdateBanner />
+      <CleanupBanner />
       {showUpdateNote && (
         <Modal title="DocGit keeps itself up to date" onClose={() => { void window.docgit.markUpdateNoteSeen(); setShowUpdateNote(false); }}>
           <p className="modal-hint">

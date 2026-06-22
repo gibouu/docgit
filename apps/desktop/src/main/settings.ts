@@ -7,9 +7,11 @@ export interface AppSettings {
   autoUpdate: boolean;
   /** Whether the one-time auto-update privacy note has been shown. */
   seenUpdateNote: boolean;
+  /** Last app version this machine launched, to detect a fresh update. */
+  lastRunVersion: string | null;
 }
 
-const DEFAULTS: AppSettings = { autoUpdate: true, seenUpdateNote: false };
+const DEFAULTS: AppSettings = { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null };
 
 /**
  * Tiny JSON-backed settings store. `dir` is the data directory
