@@ -38,6 +38,12 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Audit the FULL dependency tree (not --prod) — for an Electron app the
+      # shipped runtime + packaging deps live under devDependencies, so a
+      # production-only audit under-reports. Known advisories are waived with
+      # rationale in package.json (pnpm.auditConfig, see #149); a new moderate+
+      # advisory fails the build.
+      - run: pnpm audit --audit-level moderate
       - run: pnpm build
       - run: pnpm typecheck
       - run: pnpm test
