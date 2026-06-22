@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_ui-flow_e7486e8e08",
+  "title": "Desktop Renderer App Frame",
+  "summary": "Renderer bootstrapping, top-level React application state, shared modal UI, settings menu, update banner, and global styling.\n\nAgent mapper reason: These files provide the shared renderer shell and common controls used across desktop workflows; they should be reviewed as one UI frame rather than mixed with individual document views.",
+  "kind": "ui-flow",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/src/renderer/src/main.tsx",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/src/renderer/src/main.tsx",
+      "reason": "Renderer React bootstrap entrypoint."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/App.tsx",
+      "reason": "Top-level desktop UI state and view composition."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/Modal.tsx",
+      "reason": "Shared modal primitive for renderer flows."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/SettingsMenu.tsx",
+      "reason": "Renderer settings controls and interactions."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/UpdateBanner.tsx",
+      "reason": "Renderer update status surface."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/styles.css",
+      "reason": "Global renderer UI styling."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "apps/desktop/src/renderer/index.html",
+      "reason": "Renderer HTML shell."
+    },
+    {
+      "path": "apps/desktop/src/preload/api.d.ts",
+      "reason": "Typed API consumed by renderer UI."
+    },
+    {
+      "path": "apps/desktop/tsconfig.web.json",
+      "reason": "Renderer TypeScript configuration."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-14-library-branch-ux-design.md",
+      "reason": "Desktop UI design context."
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "agent-mapped",
+    "desktop",
+    "react",
+    "renderer",
+    "settings",
+    "updates"
+  ],
+  "trustBoundaries": [
+    "user-input",
+    "serialization"
+  ],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:18:20.297Z"
+}

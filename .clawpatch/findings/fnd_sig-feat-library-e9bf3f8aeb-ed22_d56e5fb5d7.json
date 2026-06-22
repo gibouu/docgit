@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-e9bf3f8aeb-ed22_d56e5fb5d7",
+  "featureId": "feat_library_e9bf3f8aeb",
+  "title": "Graph ordering can place children before parents when timestamps tie or skew",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/ui/src/BranchGraph.tsx",
+      "startLine": 73,
+      "endLine": 84,
+      "symbol": "BranchGraph",
+      "quote": "const ordered = commits\n      .filter((c) => laneByBranch.has(c.branchId))\n      .slice()\n      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));"
+    },
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "startLine": 80,
+      "endLine": 90,
+      "symbol": "HorizontalBranchGraph",
+      "quote": "const ordered = commits\n      .filter((c) => offsetByBranch.has(c.branchId))\n      .slice()\n      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));"
+    }
+  ],
+  "reasoning": "Both graph components derive vertical or horizontal position solely from createdAt order, then draw edges by parentId. If a child and parent share the same timestamp, arrive in child-first prop order, or have clock-skewed timestamps, the child is positioned before the parent and the version tree contradicts ancestry. A version graph should remain topological even when timestamps are non-unique.",
+  "reproduction": "Pass two commits with the same createdAt where the second is the parent of the first and the child appears first in the commits array; BranchGraph renders the child above the parent and HorizontalBranchGraph draws the edge backward in time.",
+  "recommendation": "Order commits topologically by parentId within the visible set, using createdAt and a stable id/index only as tie-breakers where ancestry does not constrain order.",
+  "whyTestsDoNotAlreadyCoverThis": "No linked tests were provided for this feature, and the package test script is a no-op, so there is no graph ordering regression coverage.",
+  "suggestedRegressionTest": "Render both graph components with parent/child commits sharing createdAt in child-first input order and assert the parent is positioned before the child.",
+  "minimumFixScope": "Add a shared ancestry-aware commit ordering helper and use it in both BranchGraph and HorizontalBranchGraph.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-e9bf3f8aeb_ed225cc9b6",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:24:44.951Z",
+  "updatedAt": "2026-06-20T13:24:44.951Z"
+}

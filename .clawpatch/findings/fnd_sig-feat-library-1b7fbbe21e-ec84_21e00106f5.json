@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-1b7fbbe21e-ec84_21e00106f5",
+  "featureId": "feat_library_1b7fbbe21e",
+  "title": "Refreshing split linked text leaves stale fragments behind",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/links/word-links.ts",
+      "startLine": 157,
+      "endLine": 164,
+      "symbol": "refreshLinkedValue",
+      "quote": "const tMatch = /<w:t(?:\\s[^>]*)?>([\\s\\S]*?)<\\/w:t>/.exec(inner);"
+    },
+    {
+      "path": "packages/core/test/links.test.ts",
+      "startLine": 58,
+      "endLine": 67,
+      "symbol": null,
+      "quote": "Refresh again — idempotent surgery survives round trips."
+    }
+  ],
+  "reasoning": "refreshLinkedValue reads and replaces only the first w:t inside the tagged content control. If Word or the user splits the linked value across multiple runs or text nodes inside the preserved content control, refresh updates the first text node and leaves the rest in place, so a value split as '€1.' + '0M' becomes '€1.2M0M'. It also reports only the first text node as oldValue, making the version message wrong.",
+  "reproduction": "Create a tagged w:sdtContent containing <w:r><w:t>€1.</w:t></w:r><w:r><w:t>0M</w:t></w:r>, then call refreshLinkedValue(..., '€1.2M'). The output keeps the second <w:t>0M</w:t>.",
+  "recommendation": "When refreshing a link, treat the whole sdtContent as the linked value: concatenate all descendant w:t values for oldValue, then replace the entire content body with one generated run for the new value, preserving appropriate run properties if needed.",
+  "whyTestsDoNotAlreadyCoverThis": "The existing refresh tests only exercise the content control shape produced by insertLinkedValue, which contains a single w:t. They do not cover a Word round trip or user edit that splits the value into multiple text nodes.",
+  "suggestedRegressionTest": "Add a test with a tagged content control whose w:sdtContent has two w:r/w:t children; assert refreshLinkedValue returns the concatenated old value and parseDocx shows only the new value once.",
+  "minimumFixScope": "packages/core/src/links/word-links.ts refreshLinkedValue plus packages/core/test/links.test.ts coverage for split content-control text.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-1b7fbbe21e_ec84a23804",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:24:03.450Z",
+  "updatedAt": "2026-06-20T13:24:03.450Z"
+}

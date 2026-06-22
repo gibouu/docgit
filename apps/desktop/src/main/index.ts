@@ -669,6 +669,21 @@ void app.whenReady().then(() => {
     void runBootCheck();
     return;
   }
+
+  // One GUI instance per machine: a second launch would open a second writer
+  // against the same docgit.db. SQLite WAL allows only one writer at a time, so
+  // hand off to the running window instead of racing it. (Headless smoke and
+  // boot-check return above, so they never take the lock.)
+  if (!app.requestSingleInstanceLock()) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+
   migrateLegacyData();
   service = new DocumentService(join(app.getPath('userData'), 'docgit.db'), notifyRenderer);
   registerIpc(service);

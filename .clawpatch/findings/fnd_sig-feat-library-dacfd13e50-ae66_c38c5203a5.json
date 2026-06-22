@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-dacfd13e50-ae66_c38c5203a5",
+  "featureId": "feat_library_dacfd13e50",
+  "title": "Grist cell references are uppercased before link creation",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "startLine": 189,
+      "endLine": 193,
+      "symbol": "AddLinkDialog",
+      "quote": "placeholder=\"B14 (Excel) or Amount:1 (Grist)\""
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "startLine": 142,
+      "endLine": 146,
+      "symbol": "AddLinkDialog.create",
+      "quote": "cellRef: cellRef.toUpperCase()"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 85,
+      "endLine": 88,
+      "symbol": "normalizeCellRef",
+      "quote": "Grist refs (\"Amount:1\") are case-sensitive ids — left alone."
+    },
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "startLine": 521,
+      "endLine": 525,
+      "symbol": "runSmokeTest",
+      "quote": "cellRef: 'Amount:1'"
+    }
+  ],
+  "reasoning": "The link dialog advertises Grist refs like Amount:1 and previews them using the user's original casing, but the create path uppercases every ref before IPC. The main service deliberately preserves non-A1 refs because Grist ids are case-sensitive, so Amount:1 becomes AMOUNT:1 and createLink fails to find a cell that the preview just showed. The smoke test covers the service path directly with the correctly-cased ref, not the renderer dialog path.",
+  "reproduction": "Connect a Grist workbook with a column id Amount, open Link a value, enter Amount:1, observe the current value preview, then click Link it. The create call sends AMOUNT:1 and the service rejects it as missing.",
+  "recommendation": "Stop uppercasing in the renderer. Pass the raw cellRef to IPC and let DocumentService.normalizeCellRef uppercase only Excel A1 refs, or share that exact normalization helper with the renderer.",
+  "whyTestsDoNotAlreadyCoverThis": "The smoke test calls svc.createLink directly with 'Amount:1'; it never exercises AddLinkDialog.create or the preload IPC payload.",
+  "suggestedRegressionTest": "Add a renderer/preload integration test for AddLinkDialog with a Grist-style ref that asserts createLink receives/persists Amount:1 unchanged.",
+  "minimumFixScope": "apps/desktop/src/renderer/src/views/LinksSection.tsx create payload normalization.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-dacfd13e50_ae66dd06e7",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:23:46.478Z",
+  "updatedAt": "2026-06-20T13:23:46.478Z"
+}

@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_bd7e3fcfaa",
+  "title": "Core Diff Engine",
+  "summary": "Document, slide, and spreadsheet diff algorithms used by the desktop review experience and core API.\n\nAgent mapper reason: Diff behavior spans multiple document shapes but shares output semantics consumed by the UI, making it a natural review unit.",
+  "kind": "library",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "packages/core/src/diff/diff.ts",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/diff/diff.ts",
+      "reason": "General document diff implementation."
+    },
+    {
+      "path": "packages/core/src/diff/slides.ts",
+      "reason": "PowerPoint slide diff implementation."
+    },
+    {
+      "path": "packages/core/src/diff/spreadsheet.ts",
+      "reason": "Spreadsheet diff implementation."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/src/model/types.ts",
+      "reason": "Diff input and output type definitions."
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "reason": "Primary shared UI consumer of diff output."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/DocumentView.tsx",
+      "reason": "Desktop document workflow consuming diffs."
+    },
+    {
+      "path": "docs/SPEC.md",
+      "reason": "Product expectations for document comparison."
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "command": null
+    }
+  ],
+  "tags": [
+    "agent-mapped",
+    "core",
+    "diff",
+    "spreadsheet",
+    "slides"
+  ],
+  "trustBoundaries": [
+    "serialization"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-bd7e3fcfaa-2734_f3da88b4f7",
+    "fnd_sig-feat-library-bd7e3fcfaa-8feb_5644e2ef4f",
+    "fnd_sig-feat-library-bd7e3fcfaa-e962_66f05eb1ca"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "3 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:25:09.895Z"
+    }
+  ],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:25:09.895Z"
+}

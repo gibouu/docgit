@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-641ef069a0-ae6d_bae8da62ec",
+  "featureId": "feat_library_641ef069a0",
+  "title": "restoreVersion can restore a commit from another document",
+  "category": "data-loss",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/store/store.ts",
+      "startLine": 524,
+      "endLine": 533,
+      "symbol": "SnapshotStore.restoreVersion",
+      "quote": "const doc = this.getDocument(documentId); const source = this.getCommit(commitId); ... this.insertCommit(doc.id, branch.id, ... source.modelHash ...)"
+    },
+    {
+      "path": "packages/core/src/store/store.ts",
+      "startLine": 654,
+      "endLine": 658,
+      "symbol": "SnapshotStore.createBranch",
+      "quote": "if (from.documentId !== doc.id) throw new Error('Cannot branch from another document');"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 398,
+      "endLine": 404,
+      "symbol": "DocumentService.restoreVersion",
+      "quote": "const result = this.store.restoreVersion(documentId, commitId); if (result.created) { this.writeFileFromCommit(documentId, result.commit.id); }"
+    },
+    {
+      "path": "packages/core/test/branching.test.ts",
+      "startLine": 91,
+      "endLine": 100,
+      "symbol": "restore test",
+      "quote": "restore re-commits old content onto the current branch reusing objects"
+    }
+  ],
+  "reasoning": "restoreVersion accepts a documentId and a commitId but never checks that the source commit belongs to that document. A wrong or stale UI/IPC call can create a commit on document A containing document B's model/file hashes, and the desktop service then writes those bytes to document A's path. createBranch already has the analogous cross-document guard, which makes restoreVersion inconsistent with the store's own safety model.",
+  "reproduction": "Commit document A and document B, then call restoreVersion(A.id, commitFromB.id). The method creates a new commit on A's current branch with B's hashes; DocumentService.restoreVersion would then overwrite A's file on disk with B's bytes.",
+  "recommendation": "Add `if (source.documentId !== doc.id) throw new Error('Cannot restore a version from another document')` before reading the current branch or inserting the restore commit.",
+  "whyTestsDoNotAlreadyCoverThis": "The existing restore test only restores a commit from the same document and does not exercise mismatched documentId/commitId inputs.",
+  "suggestedRegressionTest": "Add a test with two tracked documents asserting restoreVersion(documentA.id, documentBCommit.id) throws and leaves document A's branch head unchanged.",
+  "minimumFixScope": "SnapshotStore.restoreVersion validation plus a cross-document restore regression test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-641ef069a0_ae6da04c60",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:23:32.043Z",
+  "updatedAt": "2026-06-20T13:23:32.043Z"
+}

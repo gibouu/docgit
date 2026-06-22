@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-dacfd13e50-d778_93376007f6",
+  "featureId": "feat_library_dacfd13e50",
+  "title": "Desktop package test script is a no-op despite available smoke coverage",
+  "category": "test-gap",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "test-gap",
+  "evidence": [
+    {
+      "path": "apps/desktop/package.json",
+      "startLine": 11,
+      "endLine": 13,
+      "symbol": "scripts",
+      "quote": "\"test\": \"echo 'desktop: covered by smoke test (pnpm smoke) and core tests'\""
+    },
+    {
+      "path": "apps/desktop/package.json",
+      "startLine": 11,
+      "endLine": 11,
+      "symbol": "scripts.smoke",
+      "quote": "\"smoke\": \"electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js && DOCGIT_BOOT_CHECK=1 electron out/main/index.js\""
+    }
+  ],
+  "reasoning": "The package has a real smoke script that exercises the Electron main, preload, renderer boot, and service paths, but the standard package test script only echoes a message and exits successfully. Any workflow that runs pnpm --filter @docgit/desktop test or relies on the detected test command will report success without running the desktop coverage it claims.",
+  "reproduction": "Run pnpm --filter @docgit/desktop test; it exits 0 after printing the echo without building or launching the smoke checks.",
+  "recommendation": "Make the desktop test script invoke the smoke script, or at minimum fail/redirect clearly so package-level test automation cannot silently skip the desktop app.",
+  "whyTestsDoNotAlreadyCoverThis": "There are no linked tests for this feature and the package's own test command does not execute the smoke test.",
+  "suggestedRegressionTest": null,
+  "minimumFixScope": "apps/desktop/package.json scripts.test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-dacfd13e50_d77814d5ff",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:23:46.478Z",
+  "updatedAt": "2026-06-20T13:23:46.478Z"
+}

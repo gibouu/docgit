@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_dc9fec9152",
+  "title": "Core Document Parsing Adapters",
+  "summary": "Office document parsing adapters and generic parse dispatch for Word, Excel, and PowerPoint inputs.\n\nAgent mapper reason: The parser adapters share data models and fixture helpers, and regressions usually affect format-specific parsing plus common metadata behavior together.",
+  "kind": "library",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "packages/core/src/adapters/parse.ts",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/adapters/parse.ts",
+      "reason": "Generic parsing dispatcher for supported document formats."
+    },
+    {
+      "path": "packages/core/src/adapters/word/parse.ts",
+      "reason": "Word document parser implementation."
+    },
+    {
+      "path": "packages/core/src/adapters/excel/parse.ts",
+      "reason": "Excel workbook parser implementation."
+    },
+    {
+      "path": "packages/core/src/adapters/powerpoint/parse.ts",
+      "reason": "PowerPoint parser implementation."
+    },
+    {
+      "path": "packages/core/src/adapters/metadata.ts",
+      "reason": "Metadata extraction shared by parsed document records."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/src/model/types.ts",
+      "reason": "Parsed document and metadata type definitions."
+    },
+    {
+      "path": "packages/core/test/helpers/makeDocx.ts",
+      "reason": "Word parser fixture generator."
+    },
+    {
+      "path": "packages/core/test/helpers/makeXlsx.ts",
+      "reason": "Excel parser fixture generator."
+    },
+    {
+      "path": "packages/core/test/helpers/makePptx.ts",
+      "reason": "PowerPoint parser fixture generator."
+    },
+    {
+      "path": "docs/SPEC.md",
+      "reason": "Supported document parsing behavior."
+    },
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/metadata.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/metadata.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "command": null
+    }
+  ],
+  "tags": [
+    "agent-mapped",
+    "core",
+    "parsing",
+    "office",
+    "metadata"
+  ],
+  "trustBoundaries": [
+    "filesystem",
+    "serialization",
+    "user-input"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-dc9fec9152-32f0_423ff747b7",
+    "fnd_sig-feat-library-dc9fec9152-0cbe_bcbe013386",
+    "fnd_sig-feat-library-dc9fec9152-bdc0_4a6c408b7f",
+    "fnd_sig-feat-library-dc9fec9152-988a_484d6dfbf4"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "4 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:25:19.420Z"
+    }
+  ],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:25:19.420Z"
+}

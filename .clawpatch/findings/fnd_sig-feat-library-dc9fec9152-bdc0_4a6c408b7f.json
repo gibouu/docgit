@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-dc9fec9152-bdc0_4a6c408b7f",
+  "featureId": "feat_library_dc9fec9152",
+  "title": "Office parsers synchronously inflate untrusted ZIP input without resource limits",
+  "category": "security",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/adapters/word/parse.ts",
+      "startLine": 56,
+      "endLine": 58,
+      "symbol": "parseDocx",
+      "quote": "const files = unzipSync(data);"
+    },
+    {
+      "path": "packages/core/src/adapters/excel/parse.ts",
+      "startLine": 73,
+      "endLine": 75,
+      "symbol": "parseXlsx",
+      "quote": "const files = unzipSync(data);"
+    },
+    {
+      "path": "packages/core/src/adapters/powerpoint/parse.ts",
+      "startLine": 70,
+      "endLine": 72,
+      "symbol": "parsePptx",
+      "quote": "const files = unzipSync(data);"
+    },
+    {
+      "path": "packages/core/src/adapters/metadata.ts",
+      "startLine": 14,
+      "endLine": 18,
+      "symbol": "extractAuthor",
+      "quote": "const files = unzipSync(bytes);"
+    }
+  ],
+  "reasoning": "All parse entrypoints fully inflate user-supplied Office files synchronously and materialize every ZIP entry before validating the package. A compressed ZIP bomb or a package with many large entries can consume memory/CPU and freeze or crash the desktop app or add-in process. The feature's trust boundaries include filesystem and user input, so this is a concrete denial-of-service risk.",
+  "reproduction": null,
+  "recommendation": "Introduce a shared safe OOXML ZIP reader that enforces maximum input size, maximum entry count, maximum total uncompressed bytes, per-entry size limits, and an allowlist of required parts. Prefer inflating only needed XML parts and run heavy parsing off the UI thread where applicable.",
+  "whyTestsDoNotAlreadyCoverThis": "All linked tests build small in-memory ZIP fixtures and do not include oversized, highly-compressed, or high-entry-count packages.",
+  "suggestedRegressionTest": "Add a parser test that constructs a ZIP entry exceeding a configured uncompressed-size limit, plus a high-entry-count package, and assert the adapters reject them with a controlled error before returning a model.",
+  "minimumFixScope": "Create and use a bounded unzip helper across packages/core/src/adapters/word/parse.ts, packages/core/src/adapters/excel/parse.ts, packages/core/src/adapters/powerpoint/parse.ts, and packages/core/src/adapters/metadata.ts; add adapter-level limit tests.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-dc9fec9152_bdc05d7a14",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:25:19.325Z",
+  "updatedAt": "2026-06-20T13:25:19.325Z"
+}

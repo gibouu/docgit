@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_cli-command_6edfcd9da7",
+  "title": "Core CLI And Public API",
+  "summary": "Command-line entrypoint and package-level exports for the core library.\n\nAgent mapper reason: The CLI and exported API are the package entry surfaces and should be reviewed together for command behavior, import stability, and user-facing contracts.",
+  "kind": "cli-command",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "reason": "Core command-line interface entrypoint."
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "reason": "Public API export surface for the core package."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/package.json",
+      "reason": "CLI binary and package export metadata."
+    },
+    {
+      "path": "packages/core/tsconfig.json",
+      "reason": "Core TypeScript build configuration."
+    },
+    {
+      "path": "README.md",
+      "reason": "Repository-level usage context."
+    },
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "command": null
+    }
+  ],
+  "tags": [
+    "agent-mapped",
+    "core",
+    "cli",
+    "public-api"
+  ],
+  "trustBoundaries": [
+    "user-input",
+    "filesystem",
+    "process-exec",
+    "serialization"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-cli-command-6edfcd9da7-_b958a42651",
+    "fnd_sig-feat-cli-command-6edfcd9da7-_92ddefb89b"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "2 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:22:57.955Z"
+    }
+  ],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:22:57.955Z"
+}

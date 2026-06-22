@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-cli-command-6edfcd9da7-_b958a42651",
+  "featureId": "feat_cli-command_6edfcd9da7",
+  "title": "CLI commit help omits PowerPoint support",
+  "category": "docs-gap",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "docs-gap",
+  "evidence": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "startLine": 31,
+      "endLine": 39,
+      "symbol": null,
+      "quote": "argument('<file>', 'path to a .docx or .xlsx file')"
+    },
+    {
+      "path": "packages/core/src/cli.ts",
+      "startLine": 91,
+      "endLine": 92,
+      "symbol": null,
+      "quote": "if (diff.kind === 'slides')"
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "startLine": 18,
+      "endLine": 19,
+      "symbol": null,
+      "quote": "export { parsePptx } from './adapters/powerpoint/parse.js';"
+    }
+  ],
+  "reasoning": "The commit command is the user-facing CLI entry for snapshotting documents, but its help text says only .docx and .xlsx are accepted. The same CLI already handles slide diffs/show output, and the public API exports PowerPoint parsing through parsePptx/parseDocument, so the CLI contract presented to users is narrower than the implemented surface.",
+  "reproduction": null,
+  "recommendation": "Update the commit argument/help text to include .pptx or use SUPPORTED_EXTENSIONS to keep the help synchronized with parser support.",
+  "whyTestsDoNotAlreadyCoverThis": "The linked tests cover parsers, diffing, and SnapshotStore behavior, but they do not assert CLI help text or exercise the commit command with a .pptx fixture.",
+  "suggestedRegressionTest": "Add a CLI smoke test that runs the commit help and checks that .pptx/PowerPoint appears, and ideally commits a minimal .pptx fixture using a temporary DOCGIT_DIR.",
+  "minimumFixScope": "packages/core/src/cli.ts help text, plus a focused CLI smoke test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-cli-command-6edfcd9da7_16bc9498f0",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:22:57.952Z",
+  "updatedAt": "2026-06-20T13:22:57.952Z"
+}

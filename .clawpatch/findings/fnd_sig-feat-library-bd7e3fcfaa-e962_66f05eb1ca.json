@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-bd7e3fcfaa-e962_66f05eb1ca",
+  "featureId": "feat_library_bd7e3fcfaa",
+  "title": "Whole-sheet spreadsheet diffs skip row-major ordering",
+  "category": "api-contract",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "contract-mismatch",
+  "evidence": [
+    {
+      "path": "packages/core/src/diff/spreadsheet.ts",
+      "startLine": 55,
+      "endLine": 64,
+      "symbol": "diffSpreadsheetModels",
+      "quote": "for (const [ref, value] of Object.entries(newSheet.cells))"
+    },
+    {
+      "path": "packages/core/src/diff/spreadsheet.ts",
+      "startLine": 92,
+      "endLine": 97,
+      "symbol": "diffSpreadsheetModels",
+      "quote": "for (const [ref, value] of Object.entries(oldSheets.get(name)!.cells))"
+    },
+    {
+      "path": "packages/core/src/diff/spreadsheet.ts",
+      "startLine": 103,
+      "endLine": 109,
+      "symbol": "sortRefs",
+      "quote": "Sort \"A1\"-style refs row-major (A1, B1, A2...) so diffs read top to bottom."
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "startLine": 78,
+      "endLine": 83,
+      "symbol": "spreadsheet diff tests",
+      "quote": "reports added and removed cells in row-major order"
+    }
+  ],
+  "reasoning": "Cells in sheets present on both sides are sorted with sortRefs, but cells from wholly added or removed sheets are emitted in Object.entries insertion order. That makes the cellChanges API and UI ordering inconsistent; a programmatic model or parser that inserts C5 before A1 renders the new sheet bottom-first even though the helper documents row-major diff order.",
+  "reproduction": "For a new sheet with cells inserted as { C5: {v:'late'}, A1: {v:'top'} }, diffSpreadsheetModels emits added refs ['C5','A1'] instead of row-major ['A1','C5'].",
+  "recommendation": "Use sortRefs over Object.keys for whole-sheet added and removed loops, matching the existing-sheet path.",
+  "whyTestsDoNotAlreadyCoverThis": "The row-major assertion only covers a sheet present in both models; the whole-sheet test checks sheet names and counts but not the order of emitted cellChanges.",
+  "suggestedRegressionTest": "Extend the whole-sheet added/removed spreadsheet tests with out-of-order cell keys and assert cellChanges are row-major within those sheets.",
+  "minimumFixScope": "Change the two whole-sheet loops in packages/core/src/diff/spreadsheet.ts and add focused spreadsheet order assertions.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-bd7e3fcfaa_e962f95cb3",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:25:09.886Z",
+  "updatedAt": "2026-06-20T13:25:09.886Z"
+}

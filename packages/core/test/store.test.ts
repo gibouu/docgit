@@ -87,3 +87,51 @@ describe('SnapshotStore', () => {
     expect(store.listDocuments().some((d) => d.id === doc.id)).toBe(false);
   });
 });
+
+describe('SnapshotStore transactions', () => {
+  let dir: string;
+  let store: SnapshotStore;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'docgit-tx-'));
+    store = new SnapshotStore(join(dir, 'docgit.db'));
+  });
+
+  afterEach(() => {
+    store.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // tx() is private; reach it (and the raw connection) by name for a direct
+  // unit test of the re-entrancy guard, the property the 5 call sites rely on.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const tx = (fn: () => void) => (store as any).tx(fn) as void;
+  const setName = (id: string, name: string) =>
+    (store as any).db.prepare('UPDATE documents SET name = ? WHERE id = ?').run(name, id);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  it('re-entrant tx commits nested work with the outer transaction (no nested BEGIN)', () => {
+    const doc = store.addDocument('/Users/test/tx.docx');
+    expect(() =>
+      tx(() => {
+        setName(doc.id, 'outer');
+        tx(() => setName(doc.id, 'inner')); // joins the outer tx, does not re-BEGIN
+      }),
+    ).not.toThrow();
+    expect(store.getDocument(doc.id).name).toBe('inner');
+  });
+
+  it('rolls back the whole unit when nested work throws', () => {
+    const doc = store.addDocument('/Users/test/tx.docx');
+    const original = store.getDocument(doc.id).name;
+    expect(() =>
+      tx(() => {
+        setName(doc.id, 'changed');
+        tx(() => {
+          throw new Error('boom');
+        });
+      }),
+    ).toThrow('boom');
+    expect(store.getDocument(doc.id).name).toBe(original); // outer write rolled back too
+  });
+});

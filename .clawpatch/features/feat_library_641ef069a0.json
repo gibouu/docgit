@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_641ef069a0",
+  "title": "Core Store And Branching",
+  "summary": "Persistent document store, branching model, and storage growth concerns for the local DocGit repository.\n\nAgent mapper reason: Store behavior and domain types define the persistent model behind desktop operations; branch behavior and storage decisions need to be reviewed as one unit.",
+  "kind": "library",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "packages/core/src/store/store.ts",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/store/store.ts",
+      "reason": "Core persistent store and branch operations."
+    },
+    {
+      "path": "packages/core/src/model/types.ts",
+      "reason": "Shared domain types for stored documents and branches."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/src/index.ts",
+      "reason": "Public exports for store and model APIs."
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "reason": "Desktop service consumer of store operations."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-16-storage-growth-design.md",
+      "reason": "Storage growth design context."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-16-storage-part-store-stage1-design.md",
+      "reason": "Store staging design context."
+    },
+    {
+      "path": "docs/decisions/0001-electron-and-node-sqlite.md",
+      "reason": "Persistence architecture decision."
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/branching.test.ts",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/store.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/branching.test.ts",
+      "command": null
+    }
+  ],
+  "tags": [
+    "agent-mapped",
+    "core",
+    "store",
+    "branching",
+    "persistence"
+  ],
+  "trustBoundaries": [
+    "database",
+    "filesystem",
+    "serialization",
+    "concurrency"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-641ef069a0-1a0c_85f59f0d4e",
+    "fnd_sig-feat-library-641ef069a0-a623_516419aac8",
+    "fnd_sig-feat-library-641ef069a0-ae6d_bae8da62ec",
+    "fnd_sig-feat-library-641ef069a0-7efa_2714ef7c09"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "4 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:23:32.045Z"
+    }
+  ],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:23:32.045Z"
+}

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-3ae3fec5b6-7114_62955e3a49",
+  "featureId": "feat_library_3ae3fec5b6",
+  "title": "Modified diff rows can render blank when spans are absent",
+  "category": "api-contract",
+  "severity": "low",
+  "confidence": "medium",
+  "triage": "contract-mismatch",
+  "evidence": [
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 285,
+      "endLine": 328,
+      "symbol": "DiffRowView",
+      "quote": "const oldText = change.oldBlock ? blockText(change.oldBlock) : null;\n  const newText = change.newBlock ? blockText(change.newBlock) : null;"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 324,
+      "endLine": 329,
+      "symbol": "DiffRowView",
+      "quote": "case 'modified':\n      return (\n        <div className=\"dg-diff-row\">\n          <div className=\"dg-cell dg-cell-mod-old\">{renderSpans(change.spans, 'old')}</div>\n          <div className=\"dg-cell dg-cell-mod-new\">{renderSpans(change.spans, 'new')}</div>"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 334,
+      "endLine": 335,
+      "symbol": "renderSpans",
+      "quote": "function renderSpans(spans: WordSpan[] | undefined, side: 'old' | 'new') {\n  if (!spans) return null;"
+    }
+  ],
+  "reasoning": "DiffRowView computes oldText and newText for every change, but the modified case ignores them and renders only renderSpans(change.spans). renderSpans explicitly returns null when spans are undefined, so a modified change with oldBlock/newBlock but no spans produces empty old and new cells instead of falling back to paragraph text.",
+  "reproduction": "Render DiffView with a text diff containing a modified Change that has oldBlock and newBlock but no spans. The modified row cells are empty.",
+  "recommendation": "Mirror the slide-row fallback pattern: when change.spans is absent, render oldText and newText for modified rows; only use renderSpans when spans are present.",
+  "whyTestsDoNotAlreadyCoverThis": "No linked tests exercise DiffView rendering, and the package test script does not run assertions.",
+  "suggestedRegressionTest": "Add a DiffView render test for a modified text change without spans and assert both old and new block text are visible.",
+  "minimumFixScope": "Change the modified case in DiffRowView and add a focused render regression test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-3ae3fec5b6_7114580008",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:42:24.493Z",
+  "updatedAt": "2026-06-19T10:42:24.493Z"
+}

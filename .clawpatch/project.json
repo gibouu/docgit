@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "projectId": "prj_https-github-com-gibouu-docgit-g_3e855a0b08",
+  "name": "docgit",
+  "rootPath": "/Users/gibou/code/github/docgit",
+  "git": {
+    "remoteUrl": "https://github.com/gibouu/docgit.git",
+    "defaultBranch": "main",
+    "currentBranch": "feat/storage-part-store",
+    "headSha": "dc97c7df1d9124286ead51b2ce0379a9b07a600a"
+  },
+  "detected": {
+    "languages": [
+      "javascript"
+    ],
+    "frameworks": [],
+    "packageManagers": [
+      "pnpm"
+    ],
+    "commands": {
+      "typecheck": "pnpm typecheck",
+      "lint": null,
+      "format": null,
+      "test": "pnpm test"
+    }
+  },
+  "createdAt": "2026-06-19T10:39:07.423Z",
+  "updatedAt": "2026-06-19T10:39:07.423Z"
+}

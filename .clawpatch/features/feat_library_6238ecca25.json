@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_6238ecca25",
+  "title": "Node source apps/desktop/src/renderer",
+  "summary": "Node/TypeScript source group apps/desktop/src/renderer with 9 files.",
+  "kind": "library",
+  "source": "node-source-group",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/package.json",
+      "symbol": "apps/desktop/src/renderer",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/src/renderer/src/App.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/Modal.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/SettingsMenu.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/UpdateBanner.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/main.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/DocumentView.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/Library.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/SentHistory.tsx",
+      "reason": "source group apps/desktop/src/renderer"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "package manifest"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "typescript",
+    "source-group",
+    "project:@docgit/desktop",
+    "project-root:apps/desktop"
+  ],
+  "trustBoundaries": [],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-6238ecca25-55b6_bd928be683",
+    "fnd_sig-feat-library-6238ecca25-61f4_5eaf4c7686",
+    "fnd_sig-feat-library-6238ecca25-2be8_03dbacd868"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260619T103920-c1abb7",
+      "kind": "review",
+      "summary": "3 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-19T10:43:33.426Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}
