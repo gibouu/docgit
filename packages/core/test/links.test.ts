@@ -32,6 +32,10 @@ describe('formatValue', () => {
     expect(formatValue('1200', { style: 'raw' })).toBe('1200');
     expect(formatValue('N/A', { style: 'currency', currency: 'EUR' })).toBe('N/A');
   });
+
+  it('requires an explicit currency for currency style (#115)', () => {
+    expect(() => formatValue('1200', { style: 'currency', locale: 'en-US' })).toThrow(/currency code is required/);
+  });
 });
 
 describe('word link surgery', () => {
