@@ -21,11 +21,17 @@ export function WorkspaceFolders({
   onWorkspaceChanged: () => Promise<void>;
 }) {
   const [files, setFiles] = useState<WorkspaceFile[]>([]);
+  const [folders, setFolders] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [tracking, setTracking] = useState<string | null>(null);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const rescan = useCallback(async () => {
-    setFiles(await window.docgit.scanWorkspace());
+    const { files: f, folders: created } = await window.docgit.scanWorkspace();
+    setFiles(f);
+    setFolders(created);
   }, []);
   useEffect(() => {
     void rescan();
@@ -33,12 +39,37 @@ export function WorkspaceFolders({
 
   const docByPath = useMemo(() => new Map(documents.map((d) => [d.path, d])), [documents]);
   const fileByPath = useMemo(() => new Map(files.map((f) => [f.path, f])), [files]);
-  // Build from the scanned files PLUS tracked docs, so a tracked document that
-  // lives outside the workspace root still shows (under "Other locations").
+  // Build from the scanned files PLUS tracked docs (so an out-of-root tracked
+  // doc still shows, under "Other locations") PLUS explicitly-created folders
+  // (so an empty folder is still visible).
   const tree = useMemo(() => {
     const paths = [...new Set([...files.map((f) => f.path), ...documents.map((d) => d.path)])];
-    return buildFolderTree(paths, root);
-  }, [files, documents, root]);
+    return buildFolderTree(paths, root, folders);
+  }, [files, documents, root, folders]);
+
+  const createFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    try {
+      await window.docgit.createFolder(root, name); // created at the root for now
+      setNewFolderName('');
+      setNewFolderOpen(false);
+      await rescan();
+    } catch {
+      // surfaced via disabled state; keep the input open for a retry
+    }
+  };
+
+  const moveInto = async (documentId: string, targetDir: string) => {
+    setDropTarget(null);
+    try {
+      await window.docgit.moveDocument(documentId, targetDir);
+      await onRefresh();
+      await rescan();
+    } catch {
+      // a locked/conflicting move is reported by the main process; tree is unchanged
+    }
+  };
 
   const toggle = (path: string) =>
     setCollapsed((prev) => {
@@ -64,7 +95,15 @@ export function WorkspaceFolders({
     const name = fileByPath.get(path)?.name ?? doc?.name ?? path.split('/').pop() ?? path;
     if (doc) {
       return (
-        <button key={path} type="button" className="ws-file ws-file-tracked" onClick={() => onOpen(doc)} title={path}>
+        <button
+          key={path}
+          type="button"
+          className="ws-file ws-file-tracked"
+          onClick={() => onOpen(doc)}
+          draggable
+          onDragStart={(e) => e.dataTransfer.setData('text/docgit-doc', doc.id)}
+          title={`${path} — drag into a folder to move it`}
+        >
           <span className="ws-file-name">{name}</span>
           <span className="ws-file-meta">
             {doc.versionCount} version{doc.versionCount === 1 ? '' : 's'} · tracked
@@ -92,7 +131,21 @@ export function WorkspaceFolders({
     return (
       <div key={node.path} className="ws-folder" style={{ marginLeft: node.name ? 14 : 0 }}>
         {node.name && (
-          <button type="button" className="ws-folder-header" onClick={() => toggle(node.path)}>
+          <button
+            type="button"
+            className={`ws-folder-header${dropTarget === node.path ? ' ws-drop' : ''}`}
+            onClick={() => toggle(node.path)}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDropTarget(node.path);
+            }}
+            onDragLeave={() => setDropTarget((t) => (t === node.path ? null : t))}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData('text/docgit-doc');
+              if (id) void moveInto(id, node.path);
+            }}
+          >
             <span className="ws-folder-caret">{isCollapsed ? '▸' : '▾'}</span> {node.name}
           </button>
         )}
@@ -116,6 +169,28 @@ export function WorkspaceFolders({
           📁 {root}
         </span>
         <span className="workspace-bar-actions">
+          {newFolderOpen ? (
+            <span className="ws-newfolder">
+              <input
+                autoFocus
+                className="input ws-newfolder-input"
+                placeholder="Folder name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void createFolder();
+                  if (e.key === 'Escape') setNewFolderOpen(false);
+                }}
+              />
+              <button type="button" className="btn btn-mini btn-primary" onClick={() => void createFolder()}>
+                Create
+              </button>
+            </span>
+          ) : (
+            <button type="button" className="btn btn-mini" onClick={() => setNewFolderOpen(true)}>
+              + New folder
+            </button>
+          )}
           <button type="button" className="btn btn-mini" onClick={() => void window.docgit.setWorkspaceRoot().then(onWorkspaceChanged)}>
             Change…
           </button>
@@ -125,9 +200,23 @@ export function WorkspaceFolders({
         </span>
       </div>
       {empty ? (
-        <p className="workspace-empty-hint">No Word, Excel, or PowerPoint files in this folder yet.</p>
+        <p className="workspace-empty-hint">No Word, Excel, or PowerPoint files in this folder yet. Drag a tracked file onto a folder to move it.</p>
       ) : (
-        <div className="workspace-tree">
+        <div
+          className={`workspace-tree${dropTarget === root ? ' ws-drop' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDropTarget(root);
+          }}
+          onDragLeave={() => setDropTarget((t) => (t === root ? null : t))}
+          onDrop={(e) => {
+            // Dropping on the tree background (not a folder header) moves to the root.
+            if (dropTarget === root) {
+              const id = e.dataTransfer.getData('text/docgit-doc');
+              if (id) void moveInto(id, root);
+            }
+          }}
+        >
           {renderFolder(tree.root, 0)}
           {tree.otherLocations.length > 0 && (
             <div className="ws-folder">

@@ -32,6 +32,14 @@ describe('buildFolderTree (#52)', () => {
     expect(tree.root.docPaths).toEqual(['/work/a.docx', '/work/b.docx']);
   });
 
+  it('shows explicitly-created folders even when empty (#52)', () => {
+    const tree = buildFolderTree(['/work/a.docx'], '/work', ['/work/empty-folder', '/work/contracts/2027']);
+    const names = tree.root.folders.map((f) => f.name).sort();
+    expect(names).toEqual(['contracts', 'empty-folder']);
+    expect(tree.root.folders.find((f) => f.name === 'empty-folder')!.docPaths).toEqual([]);
+    expect(tree.root.folders.find((f) => f.name === 'contracts')!.folders.find((f) => f.name === '2027')).toBeTruthy();
+  });
+
   it('with no root, everything is other locations', () => {
     const tree = buildFolderTree(['/x/a.docx', '/y/b.docx'], '');
     expect(tree.root.folders).toEqual([]);

@@ -179,10 +179,10 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('update:check', () => checkForUpdatesNow());
   ipcMain.handle('update:install', () => quitAndInstall());
   ipcMain.handle('update:settings', () =>
-    settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null },
+    settings ? settings.get() : { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null, createdFolders: [] },
   );
   ipcMain.handle('update:setEnabled', (_e, enabled: boolean) => {
-    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null, persistError: false };
+    if (!settings) return { autoUpdate: enabled, seenUpdateNote: false, lastRunVersion: null, workspaceRoot: null, createdFolders: [], persistError: false };
     let persistError = false;
     try {
       settings.set('autoUpdate', enabled);
@@ -193,7 +193,7 @@ function registerIpc(svc: DocumentService): void {
     return { ...settings.get(), persistError };
   });
   ipcMain.handle('update:markNoteSeen', () => {
-    if (!settings) return { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null, workspaceRoot: null };
+    if (!settings) return { autoUpdate: true, seenUpdateNote: true, lastRunVersion: null, workspaceRoot: null, createdFolders: [] };
     try {
       settings.set('seenUpdateNote', true);
     } catch {
@@ -275,7 +275,26 @@ function registerIpc(svc: DocumentService): void {
   });
   ipcMain.handle('workspace:scan', () => {
     const root = settings?.get().workspaceRoot;
-    return root ? svc.scanWorkspace(root) : [];
+    if (!root) return { files: [], folders: [] };
+    const folders = (settings?.get().createdFolders ?? []).filter((f) => f === root || f.startsWith(root + '/'));
+    return { files: svc.scanWorkspace(root), folders };
+  });
+  ipcMain.handle('workspace:createFolder', (_e, parentPath: string, name: string) => {
+    const root = settings?.get().workspaceRoot;
+    if (!root) throw new Error('Set a workspace folder first.');
+    const path = svc.createFolder(root, parentPath, name);
+    try {
+      const next = [...new Set([...(settings?.get().createdFolders ?? []), path])];
+      settings?.set('createdFolders', next);
+    } catch {
+      // best-effort persistence of the created-folder list
+    }
+    return path;
+  });
+  ipcMain.handle('workspace:moveDocument', (_e, documentId: string, targetDir: string) => {
+    const root = settings?.get().workspaceRoot;
+    if (!root) throw new Error('Set a workspace folder first.');
+    return svc.moveDocument(documentId, targetDir, root);
   });
 }
 
@@ -700,6 +719,15 @@ async function runSmokeTest(): Promise<void> {
     if (byName.get('tracked.docx')?.tracked !== true) throw new Error('#157: tracked file not marked tracked');
     if (byName.get('untracked.xlsx')?.tracked !== false) throw new Error('#157: untracked file not listed as untracked');
     if (byName.has('ignore.txt')) throw new Error('#157: unsupported file should be excluded from the scan');
+
+    // #52: create a folder (mkdir) and move a tracked doc into it (fs.rename).
+    const subDir = svc.createFolder(wsDir, wsDir, 'Archive');
+    if (!existsSync(subDir)) throw new Error('#52: createFolder did not mkdir');
+    const trackedId = svc.listDocuments().find((d) => d.path === trackedFile)!.id;
+    const moved = svc.moveDocument(trackedId, subDir, wsDir);
+    if (moved.path !== join(subDir, 'tracked.docx')) throw new Error('#52: moveDocument did not update the path');
+    if (existsSync(trackedFile)) throw new Error('#52: original file should be gone after the move');
+    if (!existsSync(join(subDir, 'tracked.docx'))) throw new Error('#52: file not at its new location after the move');
     rmSync(wsDir, { recursive: true, force: true });
 
     // Live backup (store still open) must capture data despite WAL mode.

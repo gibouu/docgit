@@ -11,6 +11,8 @@ export interface AppSettings {
   lastRunVersion: string | null;
   /** The single workspace root folder; the library mirrors its disk tree (#52). */
   workspaceRoot: string | null;
+  /** Explicitly-created (possibly empty) folders to show in the workspace view (#52). */
+  createdFolders: string[];
 }
 
 const DEFAULTS: AppSettings = {
@@ -18,6 +20,7 @@ const DEFAULTS: AppSettings = {
   seenUpdateNote: false,
   lastRunVersion: null,
   workspaceRoot: null,
+  createdFolders: [],
 };
 
 /**

@@ -25,7 +25,11 @@ const SEP = '/';
  * deterministic (folders + docs sorted) so it can be unit-tested and reused by
  * the renderer without pulling the node:sqlite store into the bundle.
  */
-export function buildFolderTree(docPaths: string[], workspaceRoot: string): FolderTree {
+export function buildFolderTree(
+  docPaths: string[],
+  workspaceRoot: string,
+  extraFolders: string[] = [],
+): FolderTree {
   const root = workspaceRoot.replace(/\/+$/, ''); // strip trailing slashes
   const tree: FolderNode = { name: '', path: root, folders: [], docPaths: [] };
   const otherLocations: string[] = [];
@@ -35,13 +39,9 @@ export function buildFolderTree(docPaths: string[], workspaceRoot: string): Fold
     return { root: tree, otherLocations: [...docPaths].sort() };
   }
 
-  for (const docPath of docPaths) {
-    if (!docPath.startsWith(root + SEP)) {
-      otherLocations.push(docPath);
-      continue;
-    }
-    const segments = docPath.slice(root.length + 1).split(SEP);
-    segments.pop(); // drop the file name; what remains is the folder chain
+  // Create (or find) the folder-node chain for the given segments, returning the
+  // deepest node.
+  const descend = (segments: string[]): FolderNode => {
     let node = tree;
     let prefix = root;
     for (const seg of segments) {
@@ -53,7 +53,23 @@ export function buildFolderTree(docPaths: string[], workspaceRoot: string): Fold
       }
       node = child;
     }
-    node.docPaths.push(docPath);
+    return node;
+  };
+
+  // Explicitly-created folders show even when empty (no documents yet).
+  for (const folderPath of extraFolders) {
+    if (folderPath === root || !folderPath.startsWith(root + SEP)) continue;
+    descend(folderPath.slice(root.length + 1).split(SEP));
+  }
+
+  for (const docPath of docPaths) {
+    if (!docPath.startsWith(root + SEP)) {
+      otherLocations.push(docPath);
+      continue;
+    }
+    const segments = docPath.slice(root.length + 1).split(SEP);
+    segments.pop(); // drop the file name; what remains is the folder chain
+    descend(segments).docPaths.push(docPath);
   }
 
   sortNode(tree);
