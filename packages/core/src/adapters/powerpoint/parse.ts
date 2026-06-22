@@ -1,4 +1,5 @@
-import { unzipSync, strFromU8 } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { safeUnzip } from '../zip.js';
 import { XMLParser } from 'fast-xml-parser';
 import type { PresentationModel, SlideModel, SlideShape } from '../../model/types.js';
 
@@ -68,7 +69,7 @@ function findDeep(nodes: XNode[], tag: string): XNode | undefined {
 }
 
 export function parsePptx(data: Uint8Array): PresentationModel {
-  const files = unzipSync(data);
+  const files = safeUnzip(data);
   const presentationXml = files['ppt/presentation.xml'];
   if (!presentationXml) throw new Error('Not a valid .pptx file: missing ppt/presentation.xml');
 
