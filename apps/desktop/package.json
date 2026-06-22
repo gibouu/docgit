@@ -8,7 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js && DOCGIT_BOOT_CHECK=1 electron out/main/index.js",
+    "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js --no-sandbox && DOCGIT_BOOT_CHECK=1 electron out/main/index.js --no-sandbox",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "echo 'desktop: covered by smoke test (pnpm smoke) and core tests'",
     "dist": "electron-vite build && electron-builder --config electron-builder.yml --publish never",
