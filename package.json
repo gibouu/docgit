@@ -10,5 +10,25 @@
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=22.5.0"
+  },
+  "auditConfigRationale": {
+    "GHSA-532v-xpq5-8h95": "electron (shipped): use-after-free in offscreen child window — DocGit's app creates no offscreen child windows; upgrade tracked in #149",
+    "GHSA-f3pv-wv63-48x8": "electron (shipped): window.open scoping — upgrade to Electron 39.x tracked in #149",
+    "GHSA-gh4j-gqv2-49f6": "fast-xml-parser: XMLBuilder advisory — DocGit only uses XMLParser, never XMLBuilder; upgrade to v5 tracked in #149",
+    "GHSA-hmw2-7cc7-3qxx": "form-data: build-only (electron-builder packaging tooling), not shipped in the app",
+    "GHSA-vxpw-j846-p89q": "undici: build-only (@electron/rebuild packaging tooling), not shipped in the app",
+    "GHSA-p88m-4jfj-68fv": "undici: build-only (packaging tooling), not shipped in the app"
+  },
+  "pnpm": {
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-532v-xpq5-8h95",
+        "GHSA-f3pv-wv63-48x8",
+        "GHSA-gh4j-gqv2-49f6",
+        "GHSA-hmw2-7cc7-3qxx",
+        "GHSA-vxpw-j846-p89q",
+        "GHSA-p88m-4jfj-68fv"
+      ]
+    }
   }
 }
