@@ -46,7 +46,8 @@ jobs:
       - run: pnpm audit --audit-level moderate
       - run: pnpm build
       - run: pnpm typecheck
-      - run: pnpm test
-      # Full-stack smoke inside Electron's runtime (headless): node:sqlite,
-      # core engine, document service — fails CI if the app cannot boot.
-      - run: xvfb-run -a pnpm --filter @docgit/desktop smoke
+      # `pnpm test` runs every package's real tests, including the desktop
+      # package's full-stack Electron smoke + boot check (node:sqlite, core
+      # engine, document service, renderer load). Under xvfb so the headless
+      # Electron run has a virtual display on Linux.
+      - run: xvfb-run -a pnpm test
