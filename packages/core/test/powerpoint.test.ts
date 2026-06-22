@@ -100,4 +100,40 @@ describe('slides diff', () => {
     if (diff.kind !== 'slides') throw new Error('expected a slides diff');
     expect(diff.summary.shapesChanged).toBe(2); // both shapes of the added slide count
   });
+
+  it('matches duplicate-named shapes by occurrence, not collapsing them (#100)', () => {
+    const before = {
+      kind: 'slides' as const,
+      slides: [{ id: '256', shapes: [{ name: 'Body', text: 'A' }, { name: 'Body', text: 'B' }] }],
+    };
+    const after = { kind: 'slides' as const, slides: [{ id: '256', shapes: [{ name: 'Body', text: 'A' }] }] };
+    const diff = diffModels(before, after);
+    if (diff.kind !== 'slides') throw new Error('expected a slides diff');
+    const shapeChanges = diff.slideChanges[0]!.shapeChanges;
+    expect(shapeChanges).toHaveLength(1);
+    expect(shapeChanges[0]).toMatchObject({ type: 'removed', name: 'Body', oldText: 'B' });
+  });
+
+  it('reports a reordered + edited slide as both moved and modified (#105)', () => {
+    const before = {
+      kind: 'slides' as const,
+      slides: [
+        { id: '256', shapes: [{ name: 'T', text: 'one' }] },
+        { id: '257', shapes: [{ name: 'T', text: 'two' }] },
+      ],
+    };
+    const after = {
+      kind: 'slides' as const,
+      slides: [
+        { id: '257', shapes: [{ name: 'T', text: 'TWO' }] }, // moved to index 0 AND text changed
+        { id: '256', shapes: [{ name: 'T', text: 'one' }] },
+      ],
+    };
+    const diff = diffModels(before, after);
+    if (diff.kind !== 'slides') throw new Error('expected a slides diff');
+    const slide257 = diff.slideChanges.find((s) => s.slideId === '257')!;
+    expect(slide257.moved).toBe(true);
+    expect(slide257.shapeChanges.length).toBeGreaterThan(0); // also modified
+    expect(diff.summary.slidesMoved).toBeGreaterThanOrEqual(1);
+  });
 });
