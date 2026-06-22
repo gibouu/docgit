@@ -1,4 +1,5 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { topologicalCommitOrder } from '@docgit/core/graph';
 import type { BranchRow, CommitRow, SendRow } from '@docgit/core';
 
 /**
@@ -77,10 +78,9 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
       sendsByCommit.set(s.commitId, list);
     }
 
-    const ordered = commits
-      .filter((c) => offsetByBranch.has(c.branchId))
-      .slice()
-      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    // Ancestry-aware order: a parent never sits right of its child even when
+    // timestamps tie or clocks skew (plain timestamp sort can invert them).
+    const ordered = topologicalCommitOrder(commits.filter((c) => offsetByBranch.has(c.branchId)));
 
     const xByCommit = new Map<string, number>();
     const nodes: Node[] = ordered.map((commit, i) => {

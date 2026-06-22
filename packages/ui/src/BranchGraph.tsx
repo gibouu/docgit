@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { topologicalCommitOrder } from '@docgit/core/graph';
 import type { BranchRow, CommitRow, SendRow } from '@docgit/core';
 
 /**
@@ -70,11 +71,9 @@ export function BranchGraph(props: BranchGraphProps) {
       headsByCommit.set(branch.headCommitId, list);
     }
 
-    // Oldest first: time flows top → bottom, like reading a timeline.
-    const ordered = commits
-      .filter((c) => laneByBranch.has(c.branchId))
-      .slice()
-      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0));
+    // Oldest first (time flows top → bottom), but ancestry-aware: a parent is
+    // never drawn below its child even when timestamps tie or clocks skew.
+    const ordered = topologicalCommitOrder(commits.filter((c) => laneByBranch.has(c.branchId)));
 
     const rows: Row[] = ordered.map((commit, i) => {
       const branch = branchById.get(commit.branchId)!;

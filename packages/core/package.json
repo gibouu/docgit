@@ -22,6 +22,10 @@
       "types": "./dist/links/format.d.ts",
       "default": "./dist/links/format.js"
     },
+    "./graph": {
+      "types": "./dist/graph.d.ts",
+      "default": "./dist/graph.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
