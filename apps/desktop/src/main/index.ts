@@ -273,6 +273,10 @@ function registerIpc(svc: DocumentService): void {
     }
     return null;
   });
+  ipcMain.handle('workspace:scan', () => {
+    const root = settings?.get().workspaceRoot;
+    return root ? svc.scanWorkspace(root) : [];
+  });
 }
 
 /**
@@ -683,6 +687,20 @@ async function runSmokeTest(): Promise<void> {
     }
     if (!renameRejected) throw new Error('#82: rename must reject path-separator names');
     if (existsSync(join(dir, '..', 'escaped.docx'))) throw new Error('#82: rejected rename moved the file');
+
+    // #157: scanWorkspace lists supported files and marks which are tracked.
+    const wsDir = mkdtempSync(join(tmpdir(), 'docgit-ws-'));
+    const trackedFile = join(wsDir, 'tracked.docx');
+    writeFileSync(trackedFile, makeDocx(['workspace doc']));
+    svc.addDocument(trackedFile);
+    writeFileSync(join(wsDir, 'untracked.xlsx'), 'x'); // a supported file we did NOT add
+    writeFileSync(join(wsDir, 'ignore.txt'), 'x'); // unsupported — must be excluded
+    const scan = svc.scanWorkspace(wsDir);
+    const byName = new Map(scan.map((f) => [f.name, f]));
+    if (byName.get('tracked.docx')?.tracked !== true) throw new Error('#157: tracked file not marked tracked');
+    if (byName.get('untracked.xlsx')?.tracked !== false) throw new Error('#157: untracked file not listed as untracked');
+    if (byName.has('ignore.txt')) throw new Error('#157: unsupported file should be excluded from the scan');
+    rmSync(wsDir, { recursive: true, force: true });
 
     // Live backup (store still open) must capture data despite WAL mode.
     {

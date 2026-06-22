@@ -68,6 +68,13 @@ export interface OldInstaller {
   bytes: number;
 }
 
+/** A supported Office file found in the workspace, and whether DocGit tracks it. */
+export interface WorkspaceFile {
+  path: string;
+  name: string;
+  tracked: boolean;
+}
+
 /** Renderer-side view of the preload bridge, with IPC-resolved types. */
 export interface DocgitApi {
   listDocuments(): Promise<DocumentInfo[]>;
@@ -143,6 +150,7 @@ export interface DocgitApi {
   getWorkspaceRoot(): Promise<string | null>;
   setWorkspaceRoot(): Promise<string | null>;
   clearWorkspaceRoot(): Promise<null>;
+  scanWorkspace(): Promise<WorkspaceFile[]>;
 }
 
 declare global {
