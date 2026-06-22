@@ -11,3 +11,6 @@ release/
 
 # Local agent tooling state (not part of the project)
 .clawpatch/
+
+# icon smoke output
+apps/desktop/build/.icon-smoke.png
