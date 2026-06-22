@@ -24,6 +24,14 @@ describe('extractAuthor', () => {
     expect(extractAuthor(docWithCore(wrap('<cp:lastModifiedBy>Smith &amp; Co.</cp:lastModifiedBy>')))).toBe('Smith & Co.');
   });
 
+  it('decodes numeric character references (#110)', () => {
+    expect(extractAuthor(docWithCore(wrap('<cp:lastModifiedBy>Ren&#233;</cp:lastModifiedBy>')))).toBe('René');
+  });
+
+  it('extracts the name even when the element carries attributes (#110)', () => {
+    expect(extractAuthor(docWithCore(wrap('<cp:lastModifiedBy xml:space="preserve">Marie</cp:lastModifiedBy>')))).toBe('Marie');
+  });
+
   it('returns null when the field is empty or missing', () => {
     expect(extractAuthor(docWithCore(wrap('<cp:lastModifiedBy></cp:lastModifiedBy>')))).toBeNull();
     expect(extractAuthor(docWithCore(wrap('')))).toBeNull();
