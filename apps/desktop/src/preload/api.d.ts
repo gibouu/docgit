@@ -61,6 +61,7 @@ export interface AppSettings {
   seenUpdateNote: boolean;
   lastRunVersion: string | null;
   workspaceRoot: string | null;
+  createdFolders: string[];
 }
 
 export interface OldInstaller {
@@ -150,7 +151,9 @@ export interface DocgitApi {
   getWorkspaceRoot(): Promise<string | null>;
   setWorkspaceRoot(): Promise<string | null>;
   clearWorkspaceRoot(): Promise<null>;
-  scanWorkspace(): Promise<WorkspaceFile[]>;
+  scanWorkspace(): Promise<{ files: WorkspaceFile[]; folders: string[] }>;
+  createFolder(parentPath: string, name: string): Promise<string>;
+  moveDocument(documentId: string, targetDir: string): Promise<unknown>;
 }
 
 declare global {

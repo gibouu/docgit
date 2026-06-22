@@ -95,6 +95,8 @@ const api = {
   setWorkspaceRoot: () => ipcRenderer.invoke('workspace:set'),
   clearWorkspaceRoot: () => ipcRenderer.invoke('workspace:clear'),
   scanWorkspace: () => ipcRenderer.invoke('workspace:scan'),
+  createFolder: (parentPath: string, name: string) => ipcRenderer.invoke('workspace:createFolder', parentPath, name),
+  moveDocument: (documentId: string, targetDir: string) => ipcRenderer.invoke('workspace:moveDocument', documentId, targetDir),
 };
 
 export type DocgitApi = typeof api;

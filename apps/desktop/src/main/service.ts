@@ -28,7 +28,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, extname, join } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { appendLog } from './log.js';
 
 export type CloudProvider = 'iCloud Drive' | 'OneDrive' | 'Dropbox' | 'Google Drive';
@@ -317,6 +317,72 @@ export class DocumentService {
       // unwatched, then surface the original error. (See TECH-NOTES.)
       try {
         renameSync(newPath, doc.path);
+        this.watch(doc);
+      } catch {
+        this.watch(existsSync(newPath) ? { ...doc, path: newPath } : doc);
+      }
+      throw err;
+    }
+    this.watch(updated);
+    this.onChanged(documentId);
+    return updated;
+  }
+
+  /**
+   * Create a real folder inside the workspace (#52). Validated to stay under the
+   * root with a sane name; returns the new folder's path.
+   */
+  createFolder(root: string, parentPath: string, name: string): string {
+    const trimmed = name.trim();
+    if (!trimmed || /[/\\]/.test(trimmed) || trimmed === '.' || trimmed === '..') {
+      throw new Error('A folder name can’t be empty or contain “/” or “\\”.');
+    }
+    const parent = resolve(parentPath);
+    if (parent !== root && !parent.startsWith(root + '/')) {
+      throw new Error('Folders can only be created inside the workspace folder.');
+    }
+    const path = join(parent, trimmed);
+    if (dirname(path) !== parent) throw new Error('Invalid folder name.'); // backstop vs. traversal
+    mkdirSync(path, { recursive: true });
+    return path;
+  }
+
+  /**
+   * Move a tracked document into a folder on disk AND in DocGit (#52). The file
+   * is physically moved (fs.rename) and its path updated; the doc id — and its
+   * whole history — is unchanged. Mirrors renameDocument's safety (move first,
+   * roll back on a DB failure, never leave the document unwatched).
+   */
+  moveDocument(documentId: string, targetDir: string, root: string): DocumentRow {
+    const doc = this.store.getDocument(documentId);
+    if (isRemoteKey(doc.path)) throw new Error('Remote documents can’t be moved.');
+    const dest = resolve(targetDir);
+    if (dest !== root && !dest.startsWith(root + '/')) {
+      throw new Error('You can only move files inside the workspace folder.');
+    }
+    if (!existsSync(dest)) throw new Error('That folder no longer exists.');
+    const name = basename(doc.path);
+    const newPath = join(dest, name);
+    if (newPath === doc.path) return doc; // already there
+    if (existsSync(newPath)) throw new Error(`A file called “${name}” already exists in that folder.`);
+
+    this.unwatch(documentId);
+    try {
+      renameSync(doc.path, newPath); // risky op first
+    } catch (err) {
+      this.watch(doc); // restore watcher on the original path
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'EBUSY' || code === 'EPERM' || code === 'EACCES') {
+        throw new Error('Word may have this file open — close it and try again.');
+      }
+      throw new Error(`Couldn’t move the file on disk (${code ?? 'unknown error'}). Nothing was changed.`);
+    }
+    let updated: DocumentRow;
+    try {
+      updated = this.store.renameDocumentPath(documentId, newPath, name);
+    } catch (err) {
+      try {
+        renameSync(newPath, doc.path); // roll the file back so disk matches the record
         this.watch(doc);
       } catch {
         this.watch(existsSync(newPath) ? { ...doc, path: newPath } : doc);
