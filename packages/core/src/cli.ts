@@ -30,7 +30,7 @@ program.name('docgit').description('DocGit core engine test CLI').version('0.1.0
 
 program
   .command('commit')
-  .argument('<file>', 'path to a .docx or .xlsx file')
+  .argument('<file>', 'path to a .docx, .xlsx, or .pptx file')
   .option('-m, --message <message>', 'commit message')
   .option('-a, --author <author>', 'author name')
   .description('snapshot the current content of a document')

@@ -58,7 +58,10 @@ function createWindow(): void {
     },
   });
 
-  if (process.env['ELECTRON_RENDERER_URL']) {
+  // Only honor the dev-server URL in unpackaged builds. In a shipped app this
+  // env var must never redirect the renderer to a remote origin (which would
+  // run with the preload bridge + IPC access) — always load the bundled file.
+  if (!app.isPackaged && process.env['ELECTRON_RENDERER_URL']) {
     void win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     void win.loadFile(join(__dirname, '../renderer/index.html'));
