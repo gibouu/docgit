@@ -237,9 +237,14 @@ export class DocumentService {
     if (isRemoteKey(doc.path)) throw new Error('Remote documents cannot be renamed here.');
     const dir = dirname(doc.path);
     const ext = extname(doc.path);
-    const base = newBaseName.trim().replace(/\.[^.]+$/, ''); // ignore any extension the user typed
-    if (!base) throw new Error('Please enter a name.');
+    const trimmed = newBaseName.trim();
+    // A rename must stay a rename — never a move. Reject path separators up
+    // front for a clear message; the dirname check below is the hard backstop.
+    if (/[/\\]/.test(trimmed)) throw new Error('A name can’t contain “/” or “\\”.');
+    const base = trimmed.replace(/\.[^.]+$/, ''); // ignore any extension the user typed
+    if (!base || base === '.' || base === '..') throw new Error('Please enter a name.');
     const newPath = join(dir, `${base}${ext}`);
+    if (dirname(newPath) !== dir) throw new Error('A name can’t move the file to another folder.');
     if (newPath === doc.path) return doc;
     if (existsSync(newPath)) throw new Error(`A file called “${base}${ext}” already exists in this folder.`);
 
