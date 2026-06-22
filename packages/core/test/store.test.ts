@@ -109,6 +109,14 @@ describe('SnapshotStore', () => {
     const head = store.getCommit(store.getBranch(b.currentBranchId).headCommitId!);
     expect(parseDocx(store.getFileBytes(head))).toEqual(parseDocx(bytes)); // b still reconstructs
   });
+
+  it('rejects restoring a version that belongs to another document', () => {
+    snapshot(['doc A content'], 'a'); // commits to docPath (document A)
+    const bBytes = docxFromParagraphs(['doc B content']);
+    const b = store.commit('/Users/test/other.docx', bBytes, parseDocx(bBytes));
+    const docA = store.getDocumentByPath(docPath)!;
+    expect(() => store.restoreVersion(docA.id, b.commit.id)).toThrow(/another document/);
+  });
 });
 
 describe('SnapshotStore transactions', () => {

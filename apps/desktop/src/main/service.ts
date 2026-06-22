@@ -148,8 +148,16 @@ export class DocumentService {
 
   /** Track a document and snapshot its current content as the first version. */
   addDocument(path: string): DocumentRow {
+    const existed = this.store.getDocumentByPath(path) !== undefined;
     const doc = this.store.addDocument(path);
-    this.commitPath(doc.path, 'Added to DocGit');
+    const result = this.commitPath(doc.path, 'Added to DocGit');
+    if (!result && !existed) {
+      // Couldn't capture a first version (unreadable/unparseable) — roll the
+      // brand-new document back rather than leave a zero-version ghost behind.
+      // (Re-adding an already-tracked document keeps its existing history.)
+      this.store.deleteDocument(doc.id);
+      throw new Error(`Couldn’t read “${basename(path)}” as a document. It was not added.`);
+    }
     this.watch(doc);
     this.onChanged(doc.id);
     return doc;
@@ -317,9 +325,20 @@ export class DocumentService {
   async addGristDocument(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow> {
     const host = new URL(baseUrl).host;
     const key = `grist://${host}/${remoteDocId}`;
+    const existed = this.store.getDocumentByPath(key) !== undefined;
     const doc = this.store.addDocument(key, `${remoteDocId} · Grist`);
     this.store.setRemote(doc.id, { kind: 'grist', baseUrl, remoteDocId, ...(apiKey ? { apiKey } : {}) });
-    await this.syncRemote(doc.id);
+    let result: CommitResult | undefined;
+    try {
+      result = await this.syncRemote(doc.id);
+    } catch {
+      result = undefined; // network/API failure → fall through to rollback
+    }
+    if (!result && !existed) {
+      // First sync produced no version — don't leave a zero-version Grist doc.
+      this.store.deleteDocument(doc.id);
+      throw new Error(`Couldn’t reach the Grist document “${remoteDocId}”. It was not added.`);
+    }
     this.startPoller(doc.id);
     this.onChanged(doc.id);
     return doc;
@@ -678,7 +697,15 @@ export class DocumentService {
    */
   private snapshotDiskBeforeOverwrite(documentId: string): void {
     const doc = this.store.getDocument(documentId);
-    this.commitPath(doc.path, 'Saved', AUTOSAVE_COALESCE_MS);
+    if (!existsSync(doc.path)) return; // nothing on disk to protect
+    // commitPath returns undefined when the file can't be read/parsed right now.
+    // Proceeding would overwrite un-versioned content with no safety net, so
+    // abort the whole operation instead of losing it.
+    if (this.commitPath(doc.path, 'Saved', AUTOSAVE_COALESCE_MS) === undefined) {
+      throw new Error(
+        'Could not safely snapshot the current file before overwriting it — it may be open or mid-save. Nothing was changed; try again.',
+      );
+    }
   }
 
   private writeFileFromCommit(documentId: string, commitId: string): void {
