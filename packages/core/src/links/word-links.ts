@@ -172,13 +172,21 @@ export function refreshLinkedValue(
     const contentEnd = xml.indexOf('</w:sdtContent>', contentStart);
     if (contentStart < 0 || contentEnd < 0) return null;
     const inner = xml.slice(contentStart, contentEnd);
-    const tMatch = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>/.exec(inner);
-    if (!tMatch) return null;
-    oldValue = unescapeXml(tMatch[1]!);
-    const newInner = inner.replace(
-      /(<w:t(?:\s[^>]*)?>)[\s\S]*?(<\/w:t>)/,
-      `$1${escapeXml(newValue).replace(/\$/g, '$$$$')}$2`,
-    );
+    // Word can split the linked value across several runs/text nodes. Read the
+    // whole value (all <w:t> concatenated), put the new value in the FIRST run,
+    // and blank the rest so no stale fragment is left behind.
+    const texts: string[] = [];
+    let placed = false;
+    const newInner = inner.replace(/(<w:t(?:\s[^>]*)?>)([\s\S]*?)(<\/w:t>)/g, (_m, open, content, close) => {
+      texts.push(unescapeXml(content));
+      if (!placed) {
+        placed = true;
+        return `${open}${escapeXml(newValue)}${close}`; // function replacer: no $-substitution
+      }
+      return `${open}${close}`;
+    });
+    if (!placed) return null;
+    oldValue = texts.join('');
     return xml.slice(0, contentStart) + newInner + xml.slice(contentEnd);
   });
   return bytes ? { bytes, oldValue } : null;

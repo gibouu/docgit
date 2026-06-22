@@ -75,6 +75,16 @@ describe('word link surgery', () => {
     expect(refreshLinkedValue(doc, LINK_ID, 'x')).toBeNull();
   });
 
+  it('refreshes a value split across multiple runs without leaving fragments (#93)', () => {
+    const body =
+      `<w:p><w:sdt><w:sdtPr><w:tag w:val="docgit-link:${LINK_ID}"/></w:sdtPr><w:sdtContent>` +
+      `<w:r><w:t>€1.</w:t></w:r><w:r><w:t>0M</w:t></w:r>` +
+      `</w:sdtContent></w:sdt></w:p>`;
+    const refreshed = refreshLinkedValue(makeDocx(body), LINK_ID, '€1.2M')!;
+    expect(refreshed.oldValue).toBe('€1.0M'); // read across both runs
+    expect(parseDocx(refreshed.bytes).blocks[0]).toMatchObject({ text: '€1.2M' }); // no "€1.2M0M"
+  });
+
   it('preserves run formatting properties on the split runs', () => {
     const body = `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">Total: 500 euros</w:t></w:r></w:p>`;
     const bytes = insertLinkedValue(makeDocx(body), '500', 0, LINK_ID, '750')!;

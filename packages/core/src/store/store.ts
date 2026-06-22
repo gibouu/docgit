@@ -597,6 +597,12 @@ export class SnapshotStore {
     if (Number(sends.n) > 0) return false;
     const children = this.db.prepare('SELECT COUNT(*) AS n FROM commits WHERE parent_id = ?').get(head.id) as { n: number };
     if (Number(children.n) > 0) return false;
+    // A linked value records this commit as its source provenance — coalescing
+    // (which deletes the head) would leave that pointer dangling.
+    const links = this.db
+      .prepare('SELECT COUNT(*) AS n FROM links WHERE last_source_commit_id = ?')
+      .get(head.id) as { n: number };
+    if (Number(links.n) > 0) return false;
     const forks = this.db
       .prepare(
         `SELECT COUNT(*) AS n FROM branches
