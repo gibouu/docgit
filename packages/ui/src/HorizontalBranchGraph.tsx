@@ -194,6 +194,7 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
             onPointerUp={(e) => {
               e.stopPropagation();
               if (!drag.current?.moved) onSelectBranch?.(label.branchId);
+              endDrag(); // propagation stops here, so clear pan state ourselves
             }}
           >
             {label.name}
@@ -209,6 +210,7 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
               onPointerUp={(e) => {
                 e.stopPropagation();
                 if (!drag.current?.moved) onSelect(node.commit, e.metaKey || e.shiftKey);
+                endDrag(); // propagation stops here, so clear pan state ourselves
               }}
             >
               {selected && <circle cx={node.x} cy={node.y} r={NODE_R + 5} className="dg-hgraph-halo" style={{ stroke: node.color }} />}
