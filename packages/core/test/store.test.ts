@@ -117,6 +117,26 @@ describe('SnapshotStore', () => {
     const docA = store.getDocumentByPath(docPath)!;
     expect(() => store.restoreVersion(docA.id, b.commit.id)).toThrow(/another document/);
   });
+
+  it('does not coalesce a commit a link still references as its source (#94)', () => {
+    const v1 = snapshot(['original'], 'Saved');
+    const doc = store.getDocumentByPath(docPath)!;
+    store.createLink({
+      id: 'feed-link',
+      docDocumentId: doc.id,
+      sourceDocumentId: doc.id,
+      sheet: 'S',
+      cellRef: 'A1',
+      format: '{}',
+      lastValue: 'x',
+      lastSourceCommitId: v1.commit.id,
+    });
+    // A coalescing save would normally replace the 'Saved' head — but the link
+    // points at it, so it must survive.
+    const bytes2 = docxFromParagraphs(['changed']);
+    store.commit(docPath, bytes2, parseDocx(bytes2), { message: 'Saved', coalesceWindowMs: 60_000 });
+    expect(() => store.getCommit(v1.commit.id)).not.toThrow();
+  });
 });
 
 describe('SnapshotStore transactions', () => {
