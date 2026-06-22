@@ -96,6 +96,8 @@ export class DocumentService {
   private watchers = new Map<string, FSWatcher>();
   private watchersReady: Promise<void>[] = [];
   private pollers = new Map<string, NodeJS.Timeout>();
+  /** In-flight Grist sync per document, so a poll and a manual sync can't overlap (#95). */
+  private syncing = new Map<string, Promise<CommitResult | undefined>>();
   private logPath: string;
 
   constructor(
@@ -361,7 +363,16 @@ export class DocumentService {
 
   /** Connect a Grist document: read-only tracking — snapshot, diff, branch view, link source. */
   async addGristDocument(baseUrl: string, remoteDocId: string, apiKey?: string): Promise<DocumentRow> {
-    const host = new URL(baseUrl).host;
+    let url: URL;
+    try {
+      url = new URL(baseUrl);
+    } catch {
+      throw new Error('Enter a valid Grist server URL, e.g. https://docs.getgrist.com.');
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('The Grist server URL must start with http:// or https://.');
+    }
+    const host = url.host;
     const key = `grist://${host}/${remoteDocId}`;
     const existed = this.store.getDocumentByPath(key) !== undefined;
     const doc = this.store.addDocument(key, `${remoteDocId} · Grist`);
@@ -383,7 +394,16 @@ export class DocumentService {
   }
 
   /** Pull the current remote state and version it if it changed. */
+  /** Sync a Grist document, coalescing overlapping calls (poll + manual) for the same doc (#95). */
   async syncRemote(documentId: string): Promise<CommitResult | undefined> {
+    const inFlight = this.syncing.get(documentId);
+    if (inFlight) return inFlight; // a sync is already running for this doc — join it
+    const run = this.doSyncRemote(documentId).finally(() => this.syncing.delete(documentId));
+    this.syncing.set(documentId, run);
+    return run;
+  }
+
+  private async doSyncRemote(documentId: string): Promise<CommitResult | undefined> {
     const doc = this.store.getDocument(documentId);
     const remote = this.store.getRemote(documentId);
     if (!remote || remote.kind !== 'grist') return undefined;

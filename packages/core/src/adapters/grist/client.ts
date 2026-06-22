@@ -21,6 +21,8 @@ export interface GristConfig {
   apiKey?: string;
   /** Injectable for tests. */
   fetchFn?: typeof fetch;
+  /** Per-request timeout in ms (default 30s) so a hung server can't hang DocGit. */
+  timeoutMs?: number;
 }
 
 interface GristTable {
@@ -40,16 +42,30 @@ interface GristRecord {
 export class GristClient {
   private base: string;
   private fetchFn: typeof fetch;
+  private timeoutMs: number;
 
   constructor(private config: GristConfig) {
     this.base = `${config.baseUrl.replace(/\/+$/, '')}/api/docs/${encodeURIComponent(config.docId)}`;
     this.fetchFn = config.fetchFn ?? fetch;
+    this.timeoutMs = config.timeoutMs ?? 30_000;
+  }
+
+  /** fetch with an abort timeout so a hung/slow Grist server can't hang DocGit. */
+  private async fetchWithTimeout(url: string): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      return await this.fetchFn(url, {
+        signal: controller.signal,
+        headers: this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {},
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private async get<T>(path: string): Promise<T> {
-    const response = await this.fetchFn(`${this.base}${path}`, {
-      headers: this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {},
-    });
+    const response = await this.fetchWithTimeout(`${this.base}${path}`);
     if (!response.ok) {
       throw new Error(`Grist API ${path} failed: ${response.status} ${response.statusText}`);
     }
@@ -74,7 +90,11 @@ export class GristClient {
       const cells: Record<string, CellValue> = {};
       for (const record of records) {
         for (const [columnId, raw] of Object.entries(record.fields)) {
-          const value = raw === null || raw === undefined ? '' : String(raw);
+          // Non-scalar Grist values (reference lists, choice lists, nested
+          // records) are arrays/objects — String() would collapse them to
+          // "[object Object]" or a lossy CSV. Keep them as JSON so they diff.
+          const value =
+            raw === null || raw === undefined ? '' : typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
           const formula = formulaByColumn.get(columnId);
           if (value === '' && !formula) continue;
           const entry: CellValue = { v: value };
@@ -89,9 +109,7 @@ export class GristClient {
 
   /** Full-fidelity snapshot bytes: the .grist SQLite file. */
   async downloadBytes(): Promise<Uint8Array> {
-    const response = await this.fetchFn(`${this.base}/download`, {
-      headers: this.config.apiKey ? { Authorization: `Bearer ${this.config.apiKey}` } : {},
-    });
+    const response = await this.fetchWithTimeout(`${this.base}/download`);
     if (!response.ok) throw new Error(`Grist download failed: ${response.status}`);
     return new Uint8Array(await response.arrayBuffer());
   }

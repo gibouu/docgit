@@ -106,4 +106,27 @@ describe('Grist adapter', () => {
     });
     await expect(failing.fetchModel()).rejects.toThrow(/403/);
   });
+
+  it('preserves non-scalar field values as JSON, not [object Object] (#74)', async () => {
+    const client = new GristClient(
+      config(
+        stubFetch({
+          tables: ['T'],
+          columns: { T: [{ id: 'Refs' }] },
+          records: { T: [{ id: 1, fields: { Refs: ['L', 10, 20] } }] },
+        }),
+      ),
+    );
+    const model = await client.fetchModel();
+    expect(model.sheets[0]!.cells['Refs:1']!.v).toBe('["L",10,20]');
+  });
+
+  it('aborts a request that exceeds the timeout (#102)', async () => {
+    const hang: typeof fetch = (_url, init) =>
+      new Promise((_resolve, reject) => {
+        (init as RequestInit | undefined)?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+      });
+    const client = new GristClient({ baseUrl: 'http://grist.local', docId: 'd', fetchFn: hang, timeoutMs: 10 });
+    await expect(client.fetchModel()).rejects.toThrow();
+  });
 });
