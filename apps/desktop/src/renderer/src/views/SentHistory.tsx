@@ -15,8 +15,20 @@ export function SentHistory(props: { onBack: () => void; onOpenVersion: (documen
   }, []);
 
   useEffect(() => {
-    if (open === null) return;
-    void window.docgit.sendsToRecipient(open).then(setSends);
+    if (open === null) {
+      setSends([]);
+      return;
+    }
+    // Clear the previous recipient's rows immediately, and ignore a slow
+    // response that resolves after the user has switched recipients again.
+    let active = true;
+    setSends([]);
+    void window.docgit.sendsToRecipient(open).then((result) => {
+      if (active) setSends(result);
+    });
+    return () => {
+      active = false;
+    };
   }, [open]);
 
   return (
