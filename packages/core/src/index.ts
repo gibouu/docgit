@@ -13,6 +13,7 @@ export {
   type TableBlock,
   type TextDocModel,
 } from './model/types.js';
+export { topologicalCommitOrder, type OrderableCommit } from './graph.js';
 export { parseDocx } from './adapters/word/parse.js';
 export { parseXlsx } from './adapters/excel/parse.js';
 export { parsePptx } from './adapters/powerpoint/parse.js';
