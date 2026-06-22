@@ -673,6 +673,19 @@ async function runSmokeTest(): Promise<void> {
     }
     if (!rejected) throw new Error('assertDocgitDb should reject a non-DocGit file');
 
+    // #75: a failed restore leaves the target database intact and no temp behind.
+    let restoreFailed = false;
+    try {
+      restoreDatabase(restoredDb, join(dir, 'notadb.txt'));
+    } catch {
+      restoreFailed = true;
+    }
+    if (!restoreFailed) throw new Error('#75: restore from a non-DocGit file should throw');
+    if (existsSync(`${restoredDb}.restore-tmp`)) throw new Error('#75: staged restore temp left behind');
+    const afterFail = new SnapshotStore(restoredDb);
+    if (afterFail.listDocuments().length === 0) throw new Error('#75: failed restore corrupted the target db');
+    afterFail.close();
+
     // Old-installer detection (update-cleanup): only DocGit *.dmg/*.zip are
     // surfaced; unrelated files in the same folder are left alone.
     const dlDir = mkdtempSync(join(tmpdir(), 'docgit-downloads-'));

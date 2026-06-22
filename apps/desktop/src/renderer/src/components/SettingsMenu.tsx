@@ -68,8 +68,12 @@ export function SettingsMenu({ version }: { version: string }) {
               type="button"
               className="btn btn-mini"
               onClick={async () => {
-                const path = await window.docgit.runBackup();
-                setDataMsg(path ? 'Backup saved.' : '');
+                try {
+                  const path = await window.docgit.runBackup();
+                  setDataMsg(path ? 'Backup saved.' : '');
+                } catch {
+                  setDataMsg('Couldn’t save the backup — check the location has space and is writable, then try again.');
+                }
               }}
             >
               Back up now…

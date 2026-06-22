@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync } from 'node:fs';
+import { copyFileSync, existsSync, renameSync, unlinkSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 /** Copy the database file to `destPath` (a complete backup — objects hold all content). */
@@ -31,5 +31,29 @@ export function assertDocgitDb(srcPath: string): void {
 export function restoreDatabase(dbPath: string, srcPath: string): void {
   assertDocgitDb(srcPath);
   if (existsSync(dbPath)) copyFileSync(dbPath, `${dbPath}.bak`);
-  copyFileSync(srcPath, dbPath);
+  // Stage into a sibling temp, validate it, then atomically rename it into
+  // place. If anything before the rename fails, dbPath is left exactly as it
+  // was — never a half-written database — and the .bak is an extra safety net.
+  const tmp = `${dbPath}.restore-tmp`;
+  try {
+    copyFileSync(srcPath, tmp);
+    assertDocgitDb(tmp); // the staged copy must itself be a valid DocGit db
+    renameSync(tmp, dbPath); // atomic replace
+  } catch (err) {
+    try {
+      if (existsSync(tmp)) unlinkSync(tmp);
+    } catch {
+      // best-effort cleanup of the staged copy
+    }
+    throw err;
+  }
+  // Drop stale WAL sidecars from the previous database so SQLite can't replay
+  // them onto the freshly restored file (which would corrupt it).
+  for (const suffix of ['-wal', '-shm']) {
+    try {
+      if (existsSync(`${dbPath}${suffix}`)) unlinkSync(`${dbPath}${suffix}`);
+    } catch {
+      // a missing or locked sidecar is not fatal
+    }
+  }
 }
