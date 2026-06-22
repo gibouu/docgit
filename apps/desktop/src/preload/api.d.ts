@@ -60,6 +60,7 @@ export interface AppSettings {
   autoUpdate: boolean;
   seenUpdateNote: boolean;
   lastRunVersion: string | null;
+  workspaceRoot: string | null;
 }
 
 export interface OldInstaller {
@@ -138,6 +139,10 @@ export interface DocgitApi {
 
   cleanupCandidates(): Promise<OldInstaller[]>;
   trashOldInstallers(paths: string[]): Promise<void>;
+
+  getWorkspaceRoot(): Promise<string | null>;
+  setWorkspaceRoot(): Promise<string | null>;
+  clearWorkspaceRoot(): Promise<null>;
 }
 
 declare global {

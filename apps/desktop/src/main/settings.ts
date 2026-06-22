@@ -9,9 +9,16 @@ export interface AppSettings {
   seenUpdateNote: boolean;
   /** Last app version this machine launched, to detect a fresh update. */
   lastRunVersion: string | null;
+  /** The single workspace root folder; the library mirrors its disk tree (#52). */
+  workspaceRoot: string | null;
 }
 
-const DEFAULTS: AppSettings = { autoUpdate: true, seenUpdateNote: false, lastRunVersion: null };
+const DEFAULTS: AppSettings = {
+  autoUpdate: true,
+  seenUpdateNote: false,
+  lastRunVersion: null,
+  workspaceRoot: null,
+};
 
 /**
  * Tiny JSON-backed settings store. `dir` is the data directory

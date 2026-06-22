@@ -26,6 +26,10 @@
       "types": "./dist/graph.d.ts",
       "default": "./dist/graph.js"
     },
+    "./folders": {
+      "types": "./dist/folders.d.ts",
+      "default": "./dist/folders.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {

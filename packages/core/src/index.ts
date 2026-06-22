@@ -14,6 +14,7 @@ export {
   type TextDocModel,
 } from './model/types.js';
 export { topologicalCommitOrder, type OrderableCommit } from './graph.js';
+export { buildFolderTree, type FolderNode, type FolderTree } from './folders.js';
 export { parseDocx } from './adapters/word/parse.js';
 export { parseXlsx } from './adapters/excel/parse.js';
 export { parsePptx } from './adapters/powerpoint/parse.js';
