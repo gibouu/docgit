@@ -16,8 +16,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && cp src/styles.css dist/styles.css",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "tsc -b tsconfig.json && cp src/styles.css dist/styles.css",
+    "typecheck": "tsc -b tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {

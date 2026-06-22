@@ -9,7 +9,7 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "smoke": "electron-vite build && DOCGIT_SMOKE=1 electron out/main/index.js --no-sandbox && DOCGIT_BOOT_CHECK=1 electron out/main/index.js --no-sandbox",
-    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "tsc -b tsconfig.node.json tsconfig.web.json",
     "test": "pnpm smoke && pnpm smoke:icon",
     "smoke:icon": "electron scripts/render-icon.cjs build/icon.svg build/.icon-smoke.png --no-sandbox && node scripts/check-icon.cjs build/.icon-smoke.png",
     "dist": "electron-vite build && electron-builder --config electron-builder.yml --publish never",

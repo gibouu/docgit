@@ -7,5 +7,6 @@
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/renderer", "src/preload/api.d.ts"]
+  "include": ["src/renderer", "src/preload/api.d.ts"],
+  "references": [{ "path": "../../packages/core" }, { "path": "../../packages/ui" }]
 }
