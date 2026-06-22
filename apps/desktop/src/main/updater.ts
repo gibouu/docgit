@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import electronUpdater, { type Logger } from 'electron-updater';
-import { appendFileSync } from 'node:fs';
+import { appendLog } from './log.js';
 
 const { autoUpdater } = electronUpdater;
 
@@ -34,13 +34,7 @@ function notesToText(
  * failure resolves to a logged `error` state — the app works fully offline.
  */
 export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): void {
-  const log = (msg: string) => {
-    try {
-      appendFileSync(logPath, `${new Date().toISOString()}  updater ${msg}\n`);
-    } catch {
-      // logging must never break the app
-    }
-  };
+  const log = (msg: string) => appendLog(logPath, `updater ${msg}`);
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
