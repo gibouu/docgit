@@ -193,7 +193,15 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
             className={`dg-hgraph-label${label.isCurrent ? ' is-current' : ''}`}
             style={{ fill: label.color }}
             textAnchor="middle"
+            tabIndex={0}
+            role="button"
             aria-label={`Branch ${label.name}${label.reason ? `, ${label.reason}` : ''}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectBranch?.(label.branchId);
+              }
+            }}
             onPointerUp={(e) => {
               e.stopPropagation();
               if (!drag.current?.moved) onSelectBranch?.(label.branchId);
@@ -211,6 +219,15 @@ export function HorizontalBranchGraph(props: HorizontalBranchGraphProps) {
             <g
               key={node.commit.id}
               className="dg-hgraph-node-g"
+              tabIndex={0}
+              role="button"
+              aria-label={`Version ${node.commit.message ?? 'Saved'}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(node.commit, e.metaKey || e.shiftKey);
+                }
+              }}
               onPointerUp={(e) => {
                 e.stopPropagation();
                 if (!drag.current?.moved) onSelect(node.commit, e.metaKey || e.shiftKey);
