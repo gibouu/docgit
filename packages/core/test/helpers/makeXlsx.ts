@@ -7,7 +7,8 @@ import { escapeXml } from './makeDocx.js';
  */
 
 export type FixtureCell = string | number | { f: string; v?: string | number };
-export type FixtureSheet = { name: string; cells: Record<string, FixtureCell> };
+/** `rawRows`, when set, is used verbatim as the <sheetData> body (for adversarial XML). */
+export type FixtureSheet = { name: string; cells: Record<string, FixtureCell>; rawRows?: string };
 
 export function makeXlsx(sheets: FixtureSheet[]): Uint8Array {
   const shared: string[] = [];
@@ -45,10 +46,12 @@ export function makeXlsx(sheets: FixtureSheet[]): Uint8Array {
       list.push(xml);
       byRow.set(row, list);
     }
-    const rows = [...byRow.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([r, cellsXml]) => `<row r="${r}">${cellsXml.join('')}</row>`)
-      .join('');
+    const rows =
+      sheet.rawRows ??
+      [...byRow.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([r, cellsXml]) => `<row r="${r}">${cellsXml.join('')}</row>`)
+        .join('');
 
     files[`xl/worksheets/sheet${n}.xml`] = strToU8(
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>

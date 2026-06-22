@@ -8,7 +8,7 @@ export interface ValueFormat {
   /** 'raw' passes the stored cell value through untouched. */
   style: 'raw' | 'number' | 'currency' | 'percent';
   locale?: string; // e.g. 'fr-FR', 'en-US'
-  currency?: string; // e.g. 'EUR' — required when style is 'currency'
+  currency?: string; // e.g. 'EUR' — REQUIRED when style is 'currency' (formatValue throws if omitted)
   /** Compact notation: 1.2M / 1,2 M. */
   compact?: boolean;
   decimals?: number;
@@ -21,8 +21,11 @@ export function formatValue(raw: string, format: ValueFormat): string {
 
   const options: Intl.NumberFormatOptions = {};
   if (format.style === 'currency') {
+    // Require an explicit currency rather than silently defaulting — a wrong
+    // currency on a financial value is worse than a clear error.
+    if (!format.currency) throw new Error('A currency code is required for currency formatting.');
     options.style = 'currency';
-    options.currency = format.currency ?? 'EUR';
+    options.currency = format.currency;
   } else if (format.style === 'percent') {
     options.style = 'percent';
   }

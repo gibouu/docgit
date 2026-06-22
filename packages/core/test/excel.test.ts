@@ -98,6 +98,29 @@ describe('spreadsheet diff', () => {
     expect(() => diffModels(text, modelOf({ A1: 'x' }))).toThrow(/different kinds/);
   });
 
+  it('infers cell addresses when @r is omitted (#73)', () => {
+    const model = parseXlsx(
+      makeXlsx([{ name: 'S', cells: {}, rawRows: '<row r="2"><c><v>10</v></c><c><v>20</v></c></row>' }]),
+    );
+    expect(model.sheets[0]!.cells).toMatchObject({ A2: { v: '10' }, B2: { v: '20' } });
+  });
+
+  it('preserves shared formulas on dependent cells (#98)', () => {
+    const model = parseXlsx(
+      makeXlsx([
+        {
+          name: 'S',
+          cells: {},
+          rawRows:
+            '<row r="1"><c r="A1"><f t="shared" ref="A1:A2" si="0">B1+1</f><v>2</v></c></row>' +
+            '<row r="2"><c r="A2"><f t="shared" si="0"/><v>3</v></c></row>',
+        },
+      ]),
+    );
+    expect(model.sheets[0]!.cells.A1).toMatchObject({ f: '=B1+1' });
+    expect(model.sheets[0]!.cells.A2?.f).toBe('=B1+1'); // dependent kept its formula, not a plain value
+  });
+
   it('emits cells of a wholly-added sheet in row-major order (#109)', () => {
     const before = { kind: 'spreadsheet' as const, sheets: [] };
     const after = {

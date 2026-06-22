@@ -123,17 +123,50 @@ function parseSharedStrings(data: Uint8Array | undefined): string[] {
   return findAll(childrenOf(sst ?? ({} as XNode)), 'si').map((si) => collectT(childrenOf(si)));
 }
 
+/** 0-based column index → "A", "Z", "AA"… */
+function columnName(index: number): string {
+  let n = index;
+  let s = '';
+  do {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return s;
+}
+
+/** Leading letters of a cell ref → 0-based column index ("B2" → 1). */
+function columnIndexOf(ref: string): number {
+  const letters = /^[A-Z]+/.exec(ref)?.[0] ?? 'A';
+  let n = 0;
+  for (const ch of letters) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
 function parseWorksheet(data: Uint8Array, sharedStrings: string[]): Record<string, CellValue> {
   const cells: Record<string, CellValue> = {};
+  // Shared formulas: the anchor cell carries the formula text under an si; the
+  // dependent cells carry an empty <f t="shared" si="N"/>. Remember each anchor
+  // so dependents don't collapse into plain values. (Exact per-cell relative
+  // translation is future work; reusing the anchor text preserves the formula
+  // and keeps diffs deterministic.)
+  const sharedFormulas = new Map<string, string>();
   const root = parser.parse(strFromU8(data)) as XNode[];
   const worksheet = findChild(root, 'worksheet');
   const sheetData = findChild(childrenOf(worksheet ?? ({} as XNode)), 'sheetData');
 
   for (const row of findAll(childrenOf(sheetData ?? ({} as XNode)), 'row')) {
+    const rowNum = attrsOf(row)['@_r'];
+    let colIndex = 0; // tracks position for cells that omit @_r
     for (const cell of findAll(childrenOf(row), 'c')) {
       const attrs = attrsOf(cell);
-      const ref = attrs['@_r'];
-      if (!ref) continue;
+      let ref = attrs['@_r'];
+      if (ref) {
+        colIndex = columnIndexOf(ref) + 1; // next inferred cell continues after this one
+      } else {
+        if (rowNum === undefined) continue; // no row number → can't infer an address
+        ref = `${columnName(colIndex)}${rowNum}`;
+        colIndex += 1;
+      }
       const type = attrs['@_t'] ?? 'n';
       const kids = childrenOf(cell);
       const vNode = findChild(kids, 'v');
@@ -152,11 +185,26 @@ function parseWorksheet(data: Uint8Array, sharedStrings: string[]): Record<strin
         value = vNode ? textOf(vNode) : '';
       }
 
-      const formula = fNode ? textOf(fNode) : undefined;
+      let formula: string | undefined;
+      if (fNode) {
+        const fAttrs = attrsOf(fNode);
+        const text = textOf(fNode);
+        if (fAttrs['@_t'] === 'shared' && fAttrs['@_si'] !== undefined) {
+          const si = String(fAttrs['@_si']);
+          if (text) {
+            formula = `=${text}`;
+            sharedFormulas.set(si, formula); // anchor
+          } else {
+            formula = sharedFormulas.get(si); // dependent → reuse the anchor's formula
+          }
+        } else if (text) {
+          formula = `=${text}`;
+        }
+      }
       if (value === '' && !formula) continue; // empty cell — keep the model sparse
 
       const entry: CellValue = { v: value };
-      if (formula) entry.f = `=${formula}`;
+      if (formula) entry.f = formula;
       cells[ref] = entry;
     }
   }
