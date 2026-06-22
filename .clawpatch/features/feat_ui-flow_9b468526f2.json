@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_ui-flow_9b468526f2",
+  "title": "Desktop Document Review Flow",
+  "summary": "Document detail, diff presentation, and extracted link display in the desktop renderer.\n\nAgent mapper reason: The document detail flow combines renderer presentation with core diff and link outputs, so changes should be reviewed across the UI and its semantic data dependencies.",
+  "kind": "ui-flow",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/src/renderer/src/views/DocumentView.tsx",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/src/renderer/src/views/DocumentView.tsx",
+      "reason": "Primary document detail and review view."
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "reason": "Document link display and related interactions."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "reason": "Shared diff rendering component used by document review."
+    },
+    {
+      "path": "packages/core/src/diff/diff.ts",
+      "reason": "Core diff model surfaced by the document view."
+    },
+    {
+      "path": "packages/core/src/links/format.ts",
+      "reason": "Formatting logic for document links."
+    },
+    {
+      "path": "packages/core/src/links/word-links.ts",
+      "reason": "Word link extraction source for link display."
+    },
+    {
+      "path": "docs/SPEC.md",
+      "reason": "Product-level document review behavior."
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "reason": "nearby test"
+    },
+    {
+      "path": "packages/core/test/links.test.ts",
+      "reason": "nearby test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "command": null
+    },
+    {
+      "path": "packages/core/test/links.test.ts",
+      "command": null
+    }
+  ],
+  "tags": [
+    "agent-mapped",
+    "desktop",
+    "document-review",
+    "diff",
+    "links"
+  ],
+  "trustBoundaries": [
+    "user-input",
+    "serialization",
+    "filesystem"
+  ],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:18:20.297Z"
+}

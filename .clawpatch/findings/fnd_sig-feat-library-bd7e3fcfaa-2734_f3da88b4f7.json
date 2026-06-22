@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-bd7e3fcfaa-2734_f3da88b4f7",
+  "featureId": "feat_library_bd7e3fcfaa",
+  "title": "Edited slide moves are counted only as edits",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/diff/slides.ts",
+      "startLine": 72,
+      "endLine": 79,
+      "symbol": "diffSlideModels",
+      "quote": "const moved = old.index !== newIndex; const type = shapeChanges.length > 0 ? 'modified' : moved ? 'moved' : 'unchanged';"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 189,
+      "endLine": 194,
+      "symbol": "SlidesDiffView",
+      "quote": "{summary.slidesMoved > 0 && <span className=\"dg-chip dg-chip-moved\">{summary.slidesMoved} moved</span>}"
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "startLine": 65,
+      "endLine": 75,
+      "symbol": "slides diff tests",
+      "quote": "reports reordered slides as moved, not removed + added"
+    }
+  ],
+  "reasoning": "A slide can be both moved and edited, but the current ternary makes shape edits win over movement. That leaves the moved slide typed as modified and excludes it from summary.slidesMoved, so the API and summary chip under-report slide reorders whenever the moved slide also has text changes.",
+  "reproduction": "Old deck: slide 1 text 'old', slide 2 text 'same'. New deck: slide 2 text 'same', slide 1 text 'new'. The edited slide 1 has oldIndex 0 and newIndex 1 but is returned as type 'modified', and slidesMoved only counts slide 2.",
+  "recommendation": "Represent movement independently from edit state, for example add a moved boolean to SlideChange or increment slidesMoved whenever old.index !== newIndex and let the UI show both moved and edited badges.",
+  "whyTestsDoNotAlreadyCoverThis": "The reorder test uses unchanged slide text, and the edited-shape test does not reorder the slide.",
+  "suggestedRegressionTest": "Add a PowerPoint diff test where a slide is reordered and one of its shapes is edited; assert the moved count includes that slide and the change exposes both movement and shape edits.",
+  "minimumFixScope": "Update packages/core/src/diff/slides.ts summary/change contract, adjust packages/ui/src/DiffView.tsx if the contract changes, and add a PowerPoint regression test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-bd7e3fcfaa_2734ea6a2a",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:25:09.886Z",
+  "updatedAt": "2026-06-20T13:25:09.886Z"
+}

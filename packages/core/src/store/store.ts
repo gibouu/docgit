@@ -152,7 +152,15 @@ export class SnapshotStore {
   constructor(dbPath: string) {
     mkdirSync(dirname(resolve(dbPath)), { recursive: true });
     this.db = new DatabaseSync(dbPath);
+    // Write-ahead log: readers never block the single writer.
     this.db.exec('PRAGMA journal_mode = WAL');
+    // If another process/connection holds the write lock, wait up to 5s for it
+    // instead of failing immediately with SQLITE_BUSY ("database is locked").
+    this.db.exec('PRAGMA busy_timeout = 5000');
+    // NORMAL is the recommended durability level under WAL: crash-safe, and a
+    // power-loss only risks the most recent transaction — meaningfully faster
+    // than the FULL default because each commit no longer fsyncs.
+    this.db.exec('PRAGMA synchronous = NORMAL');
     this.db.exec('PRAGMA foreign_keys = ON');
     this.migrate();
     this.backfillBranchStarts();
@@ -275,6 +283,30 @@ export class SnapshotStore {
     }
   }
 
+  private inTransaction = false;
+
+  /**
+   * Run `fn` inside a single SQLite transaction (atomic: all writes land or
+   * none do). Re-entrant: if a `tx()` is already open on this connection, the
+   * inner call simply joins it rather than issuing a second `BEGIN` (SQLite has
+   * no nested transactions), so composing transactional methods is safe.
+   */
+  private tx<T>(fn: () => T): T {
+    if (this.inTransaction) return fn();
+    this.db.exec('BEGIN');
+    this.inTransaction = true;
+    try {
+      const result = fn();
+      this.db.exec('COMMIT');
+      return result;
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    } finally {
+      this.inTransaction = false;
+    }
+  }
+
   /** Flush the WAL into the main database file (so a file copy is a complete backup). */
   checkpoint(): void {
     this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
@@ -301,8 +333,7 @@ export class SnapshotStore {
     const docId = sha256(path).slice(0, 16);
     const branchId = sha256(`${docId}:main:${nowIso()}`).slice(0, 16);
     const name = displayName ?? path.split('/').pop() ?? path;
-    this.db.exec('BEGIN');
-    try {
+    this.tx(() => {
       this.db
         .prepare('INSERT INTO documents (id, path, name, current_branch_id, created_at) VALUES (?, ?, ?, ?, ?)')
         .run(docId, path, name, branchId, nowIso());
@@ -311,11 +342,7 @@ export class SnapshotStore {
           'INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at) VALUES (?, ?, ?, ?, NULL, 0, 0, ?)',
         )
         .run(branchId, docId, 'Main', BRANCH_COLORS[0]!, nowIso());
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
     return this.getDocument(docId);
   }
 
@@ -339,8 +366,7 @@ export class SnapshotStore {
 
   /** Permanently remove a document and all its DocGit history. The file on disk is untouched. */
   deleteDocument(documentId: string): void {
-    this.db.exec('BEGIN');
-    try {
+    this.tx(() => {
       this.db
         .prepare('DELETE FROM sends WHERE commit_id IN (SELECT id FROM commits WHERE document_id = ?)')
         .run(documentId);
@@ -349,11 +375,7 @@ export class SnapshotStore {
       this.db.prepare('DELETE FROM branches WHERE document_id = ?').run(documentId);
       this.db.prepare('DELETE FROM remotes WHERE document_id = ?').run(documentId);
       this.db.prepare('DELETE FROM documents WHERE id = ?').run(documentId);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
   }
 
   getDocumentByPath(filePath: string): DocumentRow | undefined {
@@ -497,8 +519,7 @@ export class SnapshotStore {
     const id = sha256(
       JSON.stringify([head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, createdAt]),
     );
-    this.db.exec('BEGIN');
-    try {
+    this.tx(() => {
       this.putObject(data.modelHash, Buffer.from(data.modelJson, 'utf8'));
       this.putObject(data.fileHash, Buffer.from(data.fileBytes));
       this.db
@@ -509,11 +530,7 @@ export class SnapshotStore {
         .run(id, head.documentId, head.branchId, head.parentId, data.modelHash, data.fileHash, data.message, data.author, createdAt);
       this.db.prepare('UPDATE branches SET head_commit_id = ? WHERE id = ?').run(id, head.branchId);
       this.db.prepare('DELETE FROM commits WHERE id = ?').run(head.id);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
     return this.getCommit(id);
   }
 
@@ -556,8 +573,7 @@ export class SnapshotStore {
   ): CommitRow {
     const createdAt = data.createdAt ?? nowIso();
     const id = sha256(JSON.stringify([documentId, branchId, parentId, data.modelHash, data.fileHash, data.message, createdAt]));
-    this.db.exec('BEGIN');
-    try {
+    this.tx(() => {
       if (data.modelJson !== undefined) this.putObject(data.modelHash, Buffer.from(data.modelJson, 'utf8'));
       if (data.fileBytes !== undefined) this.putObject(data.fileHash, Buffer.from(data.fileBytes));
       this.db
@@ -567,11 +583,7 @@ export class SnapshotStore {
         )
         .run(id, documentId, branchId, parentId, data.modelHash, data.fileHash, data.message, data.author, createdAt);
       this.db.prepare('UPDATE branches SET head_commit_id = ? WHERE id = ?').run(id, branchId);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
+    });
     return this.getCommit(id);
   }
 
@@ -659,8 +671,10 @@ export class SnapshotStore {
     const siblings = this.listBranches(documentId);
     const position = siblings.length === 0 ? 0 : Math.max(...siblings.map((b) => b.position)) + 1;
     const id = sha256(`${documentId}:${name}:${nowIso()}`).slice(0, 16);
-    this.db.exec('BEGIN');
-    try {
+    // Branch row + its starting commit land atomically: insertCommit joins this
+    // transaction (the tx() re-entrancy guard) rather than opening its own, so a
+    // failure can never leave a branch without its head commit.
+    this.tx(() => {
       this.db
         .prepare(
           `INSERT INTO branches (id, document_id, name, color, head_commit_id, archived, position, created_at, forked_from_commit_id, synced_upstream_commit_id, reason)
@@ -679,22 +693,18 @@ export class SnapshotStore {
           reason ?? null,
         );
       this.db.prepare('UPDATE documents SET current_branch_id = ? WHERE id = ?').run(id, documentId);
-      this.db.exec('COMMIT');
-    } catch (err) {
-      this.db.exec('ROLLBACK');
-      throw err;
-    }
-    // Give the new branch its own starting commit (same content as the fork
-    // point, reusing the existing object blobs) so it appears immediately as
-    // its own line in the tree and has a head that belongs to it — not to the
-    // parent branch. Without this a fresh branch is invisible and ambiguous.
-    this.insertCommit(documentId, id, fromCommitId, {
-      modelHash: from.modelHash,
-      fileHash: from.fileHash,
-      // Name-free (see backfillBranchStarts): the branch's name is the single
-      // source of truth, so renaming never strands an old name on a commit.
-      message: 'Branch created',
-      author: null,
+      // Give the new branch its own starting commit (same content as the fork
+      // point, reusing the existing object blobs) so it appears immediately as
+      // its own line in the tree and has a head that belongs to it — not to the
+      // parent branch. Without this a fresh branch is invisible and ambiguous.
+      this.insertCommit(documentId, id, fromCommitId, {
+        modelHash: from.modelHash,
+        fileHash: from.fileHash,
+        // Name-free (see backfillBranchStarts): the branch's name is the single
+        // source of truth, so renaming never strands an old name on a commit.
+        message: 'Branch created',
+        author: null,
+      });
     });
     return this.getBranch(id);
   }

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_service_86071879b6",
+  "title": "Desktop Main Process Shell",
+  "summary": "Electron main process startup, app lifecycle, backup coordination, local service wiring, settings persistence, and update orchestration.\n\nAgent mapper reason: These files form the privileged desktop runtime boundary and should be reviewed together because lifecycle, storage, backups, settings, and update behavior interact in the Electron main process.",
+  "kind": "service",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "reason": "Main Electron entrypoint and lifecycle coordinator."
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "reason": "Desktop backend service layer exposed to the renderer."
+    },
+    {
+      "path": "apps/desktop/src/main/settings.ts",
+      "reason": "Settings persistence used by desktop runtime."
+    },
+    {
+      "path": "apps/desktop/src/main/backup.ts",
+      "reason": "Backup behavior for desktop-managed local data."
+    },
+    {
+      "path": "apps/desktop/src/main/updater.ts",
+      "reason": "Auto-update checks and update state handling."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "Desktop package scripts and runtime dependencies."
+    },
+    {
+      "path": "apps/desktop/electron.vite.config.ts",
+      "reason": "Electron build entrypoint configuration."
+    },
+    {
+      "path": "apps/desktop/electron-builder.yml",
+      "reason": "Packaging and updater configuration."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-06-15-auto-update.md",
+      "reason": "Auto-update implementation plan context."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-15-auto-update-design.md",
+      "reason": "Auto-update design intent."
+    },
+    {
+      "path": "docs/superpowers/plans/2026-06-16-backup-and-whats-new.md",
+      "reason": "Backup and release-note workflow context."
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-16-backup-and-whats-new-design.md",
+      "reason": "Backup design intent."
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "agent-mapped",
+    "desktop",
+    "electron",
+    "main-process",
+    "backup",
+    "updates"
+  ],
+  "trustBoundaries": [
+    "filesystem",
+    "process-exec",
+    "database",
+    "network",
+    "external-api",
+    "serialization"
+  ],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:18:20.297Z"
+}

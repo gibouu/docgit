@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_config_b196dfd3e3",
+  "title": "Workspace Build And Typecheck Config",
+  "summary": "Monorepo package manifests, workspace TypeScript configuration, and package manager setup.\n\nAgent mapper reason: These files define how the workspace builds, typechecks, and resolves packages; manifest changes should be reviewed together across package boundaries.",
+  "kind": "config",
+  "source": "agent-mapper",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "package.json",
+      "symbol": null,
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "package.json",
+      "reason": "Root workspace scripts and dependency coordination."
+    },
+    {
+      "path": "pnpm-workspace.yaml",
+      "reason": "Workspace package membership."
+    },
+    {
+      "path": "tsconfig.base.json",
+      "reason": "Shared TypeScript compiler options."
+    },
+    {
+      "path": "packages/core/package.json",
+      "reason": "Core package build and dependency metadata."
+    },
+    {
+      "path": "packages/core/tsconfig.json",
+      "reason": "Core package TypeScript configuration."
+    },
+    {
+      "path": "packages/ui/package.json",
+      "reason": "UI package build and dependency metadata."
+    },
+    {
+      "path": "packages/ui/tsconfig.json",
+      "reason": "UI package TypeScript configuration."
+    },
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "Desktop app scripts and dependency metadata."
+    },
+    {
+      "path": "apps/desktop/tsconfig.node.json",
+      "reason": "Desktop main/preload TypeScript configuration."
+    },
+    {
+      "path": "apps/desktop/tsconfig.web.json",
+      "reason": "Desktop renderer TypeScript configuration."
+    },
+    {
+      "path": "apps/office-addin/package.json",
+      "reason": "Office add-in package placeholder or package metadata."
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "README.md",
+      "reason": "Project setup and usage context."
+    },
+    {
+      "path": "AGENTS.md",
+      "reason": "Repository workflow and verification instructions."
+    },
+    {
+      "path": "CLAUDE.md",
+      "reason": "Compatibility instructions importing repository agent rules."
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "agent-mapped",
+    "monorepo",
+    "pnpm",
+    "typescript",
+    "build"
+  ],
+  "trustBoundaries": [
+    "process-exec",
+    "filesystem"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-config-b196dfd3e3-97068_70771033e6",
+    "fnd_sig-feat-config-b196dfd3e3-7c087_4ff8e2561e"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "2 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:23:42.297Z"
+    }
+  ],
+  "createdAt": "2026-06-20T13:18:20.297Z",
+  "updatedAt": "2026-06-20T13:23:42.297Z"
+}

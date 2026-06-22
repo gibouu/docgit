@@ -57,6 +57,12 @@ export interface UpdateState {
 export interface AppSettings {
   autoUpdate: boolean;
   seenUpdateNote: boolean;
+  lastRunVersion: string | null;
+}
+
+export interface OldInstaller {
+  path: string;
+  bytes: number;
 }
 
 /** Renderer-side view of the preload bridge, with IPC-resolved types. */
@@ -127,6 +133,9 @@ export interface DocgitApi {
   runBackup(): Promise<string | null>;
   restoreBackup(): Promise<void>;
   revealDataFolder(): Promise<void>;
+
+  cleanupCandidates(): Promise<OldInstaller[]>;
+  trashOldInstallers(paths: string[]): Promise<void>;
 }
 
 declare global {

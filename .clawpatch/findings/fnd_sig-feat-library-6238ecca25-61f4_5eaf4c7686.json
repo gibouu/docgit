@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-6238ecca25-61f4_5eaf4c7686",
+  "featureId": "feat_library_6238ecca25",
+  "title": "Recipient detail requests can show sends for the wrong recipient",
+  "category": "concurrency",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/renderer/src/views/SentHistory.tsx",
+      "startLine": 17,
+      "endLine": 20,
+      "symbol": "SentHistory",
+      "quote": "if (open === null) return;\nvoid window.docgit.sendsToRecipient(open).then(setSends);"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/SentHistory.tsx",
+      "startLine": 58,
+      "endLine": 76,
+      "symbol": "SentHistory",
+      "quote": "{open === r.recipient && (\n  <ul className=\"recipient-sends\">\n    {sends.map((send) => ("
+    }
+  ],
+  "reasoning": "sends is a single global list rendered under whichever recipient is currently open. When switching from recipient A to B, A's sends remain visible under B until B's request resolves. If A's slower request resolves after B is selected, it can overwrite B's sends indefinitely until another interaction.",
+  "reproduction": "With two recipients that each have sends, open recipient A and wait for its sends to load. Then open recipient B. B's expanded row initially renders A's sends; with delayed IPC responses, a stale A response can also overwrite B after B has loaded.",
+  "recommendation": "Clear sends when open changes and ignore stale responses. For example, capture the requested recipient in the effect, use an alive flag/request id, and only setSends if the request still matches the current open recipient. Alternatively store sends keyed by recipient.",
+  "whyTestsDoNotAlreadyCoverThis": "No linked renderer tests cover async recipient switching; the package test script does not execute UI tests.",
+  "suggestedRegressionTest": "Render SentHistory with deferred sendsToRecipient promises, switch from A to B before A resolves, resolve A last, and assert B never displays A's sends.",
+  "minimumFixScope": "apps/desktop/src/renderer/src/views/SentHistory.tsx effect and sends state model.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-6238ecca25_61f40709a6",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:43:33.423Z",
+  "updatedAt": "2026-06-19T10:43:33.423Z"
+}

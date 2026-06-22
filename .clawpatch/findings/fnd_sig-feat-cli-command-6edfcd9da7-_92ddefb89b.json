@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-cli-command-6edfcd9da7-_92ddefb89b",
+  "featureId": "feat_cli-command_6edfcd9da7",
+  "title": "Tests bypass the packaged CLI and export surfaces",
+  "category": "test-gap",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "test-gap",
+  "evidence": [
+    {
+      "path": "packages/core/package.json",
+      "startLine": 6,
+      "endLine": 29,
+      "symbol": null,
+      "quote": "\"main\": \"./dist/index.js\""
+    },
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "startLine": 1,
+      "endLine": 2,
+      "symbol": null,
+      "quote": "import { parseDocx } from '../src/index.js';"
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "startLine": 1,
+      "endLine": 2,
+      "symbol": null,
+      "quote": "import { diffModels, parseDocx, type DocModel } from '../src/index.js';"
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "startLine": 4,
+      "endLine": 5,
+      "symbol": null,
+      "quote": "import { parseDocx, SnapshotStore } from '../src/index.js';"
+    }
+  ],
+  "reasoning": "This feature is specifically about the CLI entrypoint and package-level public API, but the linked tests import the TypeScript source index directly and do not spawn the packaged bin or import through the package exports declared in package.json. A broken dist export map, bin target, shebang, or command parser regression could ship while these tests still pass.",
+  "reproduction": null,
+  "recommendation": "Add a package-surface smoke test after build that imports @docgit/core through the package entrypoint and runs the docgit bin against a temporary DOCGIT_DIR for at least help/version and one commit/log flow.",
+  "whyTestsDoNotAlreadyCoverThis": "The current linked tests validate implementation modules through ../src/index.js and direct store/parser calls; they never exercise package.json exports or the docgit binary.",
+  "suggestedRegressionTest": "After pnpm --filter @docgit/core build, run a test that imports the built package root and executes dist/cli.js or the package bin with --help, --version, commit, and log against a temporary fixture.",
+  "minimumFixScope": "Add one package-entry smoke test for @docgit/core exports and one CLI smoke path for the bin.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-cli-command-6edfcd9da7_c4248680bf",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:22:57.952Z",
+  "updatedAt": "2026-06-20T13:22:57.952Z"
+}

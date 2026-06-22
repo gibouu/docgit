@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-3ae3fec5b6-3aac_fb06544828",
+  "featureId": "feat_library_3ae3fec5b6",
+  "title": "Drag cleanup is skipped when pointerup lands on graph nodes or labels",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "startLine": 153,
+      "endLine": 155,
+      "symbol": "endDrag",
+      "quote": "const endDrag = () => {\n    setPanning(false);\n    setTimeout(() => (drag.current = null), 0);\n  };"
+    },
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "startLine": 169,
+      "endLine": 175,
+      "symbol": "HorizontalBranchGraph",
+      "quote": "onPointerUp={endDrag}"
+    },
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "startLine": 194,
+      "endLine": 197,
+      "symbol": "HorizontalBranchGraph",
+      "quote": "e.stopPropagation();\n              if (!drag.current?.moved) onSelectBranch?.(label.branchId);"
+    },
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "startLine": 209,
+      "endLine": 212,
+      "symbol": "HorizontalBranchGraph",
+      "quote": "e.stopPropagation();\n                if (!drag.current?.moved) onSelect(node.commit, e.metaKey || e.shiftKey);"
+    }
+  ],
+  "reasoning": "The only cleanup path for a completed drag is the parent div's onPointerUp handler, but commit nodes and branch labels stop pointerup propagation. If the user drags more than the threshold and releases over one of those SVG children, endDrag does not run, leaving panning true and drag.current uncleared.",
+  "reproduction": "In the horizontal branch graph, pointer down, move more than 4px, then release over a commit node or branch label. The graph can remain in the is-panning state with a grabbing cursor.",
+  "recommendation": "Run drag cleanup from the child pointerup handlers before returning, or move cleanup to a capture-phase handler on the container so stopPropagation cannot bypass it. Keep click selection gated by the moved flag.",
+  "whyTestsDoNotAlreadyCoverThis": "No linked UI tests are present, and the package test script is an echo-only placeholder.",
+  "suggestedRegressionTest": "Add a UI interaction test for HorizontalBranchGraph that dispatches pointerDown, pointerMove, and pointerUp on a node after movement, then asserts the panning class is removed and click selection still works for a non-drag click.",
+  "minimumFixScope": "Update HorizontalBranchGraph pointerup handling and add a focused interaction regression test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-3ae3fec5b6_3aac8229a5",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:42:24.493Z",
+  "updatedAt": "2026-06-19T10:42:24.493Z"
+}

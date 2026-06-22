@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_3dc429a783",
+  "title": "Node source apps/desktop/src/main",
+  "summary": "Node/TypeScript source group apps/desktop/src/main with 5 files.",
+  "kind": "library",
+  "source": "node-source-group",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/package.json",
+      "symbol": "apps/desktop/src/main",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/src/main/backup.ts",
+      "reason": "source group apps/desktop/src/main"
+    },
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "reason": "source group apps/desktop/src/main"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "reason": "source group apps/desktop/src/main"
+    },
+    {
+      "path": "apps/desktop/src/main/settings.ts",
+      "reason": "source group apps/desktop/src/main"
+    },
+    {
+      "path": "apps/desktop/src/main/updater.ts",
+      "reason": "source group apps/desktop/src/main"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "package manifest"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "typescript",
+    "source-group",
+    "project:@docgit/desktop",
+    "project-root:apps/desktop"
+  ],
+  "trustBoundaries": [],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-3dc429a783-a38b_8165198832",
+    "fnd_sig-feat-library-3dc429a783-e700_93bf8d2a8b",
+    "fnd_sig-feat-library-3dc429a783-f68a_62025f3fdb",
+    "fnd_sig-feat-library-3dc429a783-a78d_e1dcd3ff67"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260619T103920-c1abb7",
+      "kind": "review",
+      "summary": "4 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-19T10:43:43.148Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}

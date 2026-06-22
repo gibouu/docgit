@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-dc9fec9152-988a_484d6dfbf4",
+  "featureId": "feat_library_dc9fec9152",
+  "title": "Author extraction manually decodes only a subset of valid XML text",
+  "category": "bug",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/adapters/metadata.ts",
+      "startLine": 22,
+      "endLine": 31,
+      "symbol": "extractAuthor",
+      "quote": "const match = /<cp:lastModifiedBy>([\\s\\S]*?)<\\/cp:lastModifiedBy>/.exec(xml) ?? /<dc:creator>([\\s\\S]*?)<\\/dc:creator>/.exec(xml);"
+    },
+    {
+      "path": "packages/core/test/metadata.test.ts",
+      "startLine": 23,
+      "endLine": 25,
+      "symbol": null,
+      "quote": "it('decodes XML entities in names', () => {"
+    }
+  ],
+  "reasoning": "Core properties are XML, but extractAuthor uses exact-tag regexes and hand-decodes only five named entities. Valid author names containing numeric character references such as Ren&#233; or elements with harmless attributes such as cp:lastModifiedBy xml:space=\"preserve\" are returned incorrectly or missed entirely, causing wrong version attribution.",
+  "reproduction": null,
+  "recommendation": "Parse docProps/core.xml with the same XML parser used by the adapters, extract lastModifiedBy/creator by local name or namespace-aware lookup, and let the XML parser decode text content instead of maintaining manual entity replacement logic.",
+  "whyTestsDoNotAlreadyCoverThis": "metadata.test.ts covers only plain exact cp/dc tags and a named &amp; entity, not numeric character references, attributes on metadata elements, or alternate namespace prefixes.",
+  "suggestedRegressionTest": "Add metadata tests for `<cp:lastModifiedBy>Ren&#233; Descartes</cp:lastModifiedBy>`, `<cp:lastModifiedBy>Ren&#xE9;</cp:lastModifiedBy>`, and `<cp:lastModifiedBy xml:space=\"preserve\">Marie Dupont</cp:lastModifiedBy>` and assert the decoded author is returned.",
+  "minimumFixScope": "Replace the regex/manual entity handling in packages/core/src/adapters/metadata.ts and expand packages/core/test/metadata.test.ts.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-dc9fec9152_988a6be023",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:25:19.326Z",
+  "updatedAt": "2026-06-20T13:25:19.326Z"
+}

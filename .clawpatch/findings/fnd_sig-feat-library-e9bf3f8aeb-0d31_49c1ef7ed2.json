@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-e9bf3f8aeb-0d31_49c1ef7ed2",
+  "featureId": "feat_library_e9bf3f8aeb",
+  "title": "Modified text rows can render blank when spans are absent",
+  "category": "api-contract",
+  "severity": "low",
+  "confidence": "medium",
+  "triage": "contract-mismatch",
+  "evidence": [
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 285,
+      "endLine": 288,
+      "symbol": "DiffRowView",
+      "quote": "const oldText = change.oldBlock ? blockText(change.oldBlock) : null;\n  const newText = change.newBlock ? blockText(change.newBlock) : null;"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 324,
+      "endLine": 329,
+      "symbol": "DiffRowView",
+      "quote": "case 'modified':\n      return (\n        <div className=\"dg-diff-row\">\n          <div className=\"dg-cell dg-cell-mod-old\">{renderSpans(change.spans, 'old')}</div>\n          <div className=\"dg-cell dg-cell-mod-new\">{renderSpans(change.spans, 'new')}</div>"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "startLine": 334,
+      "endLine": 335,
+      "symbol": "renderSpans",
+      "quote": "function renderSpans(spans: WordSpan[] | undefined, side: 'old' | 'new') {\n  if (!spans) return null;"
+    }
+  ],
+  "reasoning": "DiffViewProps accepts a DocDiff, and Change.spans is handled as optional here, but the modified-row renderer ignores the already computed oldText and newText fallback. A modified change with oldBlock/newBlock but no spans therefore produces two empty cells instead of showing the changed paragraph text. This is medium confidence because the core diff producer may usually provide spans, but the UI component is exported as a library and the local code explicitly accepts undefined spans.",
+  "reproduction": "Render DiffView with a text diff containing a modified change with oldBlock and newBlock but no spans; both modified cells are empty.",
+  "recommendation": "Render span highlights when present, otherwise fall back to oldText on the old side and newText on the new side.",
+  "whyTestsDoNotAlreadyCoverThis": "No UI tests are linked, and the package test script only echoes that there are no unit tests.",
+  "suggestedRegressionTest": "Add a DiffView render test for a modified Change without spans and assert both old and new paragraph text are visible.",
+  "minimumFixScope": "Change only the modified branch in DiffRowView and add the focused render regression test.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-e9bf3f8aeb_0d31dde2db",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:24:44.952Z",
+  "updatedAt": "2026-06-20T13:24:44.952Z"
+}

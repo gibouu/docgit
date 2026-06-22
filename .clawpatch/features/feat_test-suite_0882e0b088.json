@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_test-suite_0882e0b088",
+  "title": "Package script test (@docgit/desktop)",
+  "summary": "Package script 'test' in apps/desktop/package.json: echo 'desktop: covered by smoke test (pnpm smoke) and core tests'",
+  "kind": "test-suite",
+  "source": "package-json-script",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/package.json",
+      "symbol": "test",
+      "route": null,
+      "command": "test"
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "entrypoint"
+    }
+  ],
+  "contextFiles": [],
+  "tests": [],
+  "tags": [
+    "node",
+    "package-script",
+    "project:@docgit/desktop",
+    "project-root:apps/desktop"
+  ],
+  "trustBoundaries": [],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}

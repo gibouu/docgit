@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-641ef069a0-7efa_2714ef7c09",
+  "featureId": "feat_library_641ef069a0",
+  "title": "canonicalJson is not canonical for unordered model records",
+  "category": "api-contract",
+  "severity": "medium",
+  "confidence": "medium",
+  "triage": "contract-mismatch",
+  "evidence": [
+    {
+      "path": "packages/core/src/model/types.ts",
+      "startLine": 37,
+      "endLine": 40,
+      "symbol": "SheetModel.cells",
+      "quote": "cells: Record<string, CellValue>"
+    },
+    {
+      "path": "packages/core/src/model/types.ts",
+      "startLine": 73,
+      "endLine": 75,
+      "symbol": "canonicalJson",
+      "quote": "export function canonicalJson(model: DocModel): string { return JSON.stringify(model); }"
+    },
+    {
+      "path": "packages/core/src/store/store.ts",
+      "startLine": 433,
+      "endLine": 438,
+      "symbol": "SnapshotStore.commit",
+      "quote": "const modelJson = canonicalJson(model); const modelHash = sha256(modelJson); ... return { commit: head, created: false };"
+    }
+  ],
+  "reasoning": "Spreadsheet cells are modeled as a Record, where key insertion order is not part of the semantic document model. JSON.stringify preserves insertion order, so two equivalent models with the same cells inserted in different orders produce different model hashes. That causes spurious versions, breaks content-addressing expectations, and makes no-op detection depend on parser/object construction order rather than document content.",
+  "reproduction": "Construct two SpreadsheetModel objects with identical sheets and cells but insert `A1` then `B1` in one object and `B1` then `A1` in the other. canonicalJson returns different strings and SnapshotStore.commit treats them as different content.",
+  "recommendation": "Implement a stable serializer that sorts object keys recursively, or normalize model records such as cells into sorted entries before hashing.",
+  "whyTestsDoNotAlreadyCoverThis": "The linked store/branching tests use generated DOCX paragraph arrays and do not compare equivalent spreadsheet models with different record insertion orders.",
+  "suggestedRegressionTest": "Add a test that commits two equivalent SpreadsheetModel values whose cells were inserted in different orders and asserts the second commit is a no-op.",
+  "minimumFixScope": "canonicalJson implementation and a regression test for unordered record normalization.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-641ef069a0_7efad14699",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:23:32.043Z",
+  "updatedAt": "2026-06-20T13:23:32.043Z"
+}

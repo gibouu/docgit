@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "runId": "20260619T103920-c1abb7",
+  "command": "review",
+  "args": [
+    "review",
+    "--limit",
+    "10",
+    "--no-input"
+  ],
+  "rootPath": "/Users/gibou/code/github/docgit",
+  "headSha": "dc97c7df1d9124286ead51b2ce0379a9b07a600a",
+  "startedAt": "2026-06-19T10:39:20.812Z",
+  "finishedAt": "2026-06-19T10:43:43.148Z",
+  "status": "completed",
+  "claimedFeatureIds": [
+    "feat_cli-command_0210383125",
+    "feat_cli-command_07f41ac7b3",
+    "feat_config_7528cb5b98",
+    "feat_library_2addefc088",
+    "feat_library_3ae3fec5b6",
+    "feat_library_3dc429a783",
+    "feat_library_4c4b989453",
+    "feat_library_6238ecca25",
+    "feat_library_87e4bdef60",
+    "feat_library_b360561c34"
+  ],
+  "findingIds": [
+    "fnd_sig-feat-cli-command-07f41ac7b3-_036e894b6c",
+    "fnd_sig-feat-cli-command-07f41ac7b3-_8fc11a2b15",
+    "fnd_sig-feat-library-b360561c34-8b32_70c85a4a17",
+    "fnd_sig-feat-library-3ae3fec5b6-3aac_fb06544828",
+    "fnd_sig-feat-library-3ae3fec5b6-7114_62955e3a49",
+    "fnd_sig-feat-library-3ae3fec5b6-2028_edbf511b53",
+    "fnd_sig-feat-library-2addefc088-2742_cb3b80a531",
+    "fnd_sig-feat-library-2addefc088-5b3f_11755819a3",
+    "fnd_sig-feat-library-2addefc088-389c_f62b581fa6",
+    "fnd_sig-feat-library-2addefc088-5a4c_09a3d4e20c",
+    "fnd_sig-feat-library-6238ecca25-55b6_bd928be683",
+    "fnd_sig-feat-library-6238ecca25-61f4_5eaf4c7686",
+    "fnd_sig-feat-library-6238ecca25-2be8_03dbacd868",
+    "fnd_sig-feat-library-3dc429a783-a38b_8165198832",
+    "fnd_sig-feat-library-3dc429a783-e700_93bf8d2a8b",
+    "fnd_sig-feat-library-3dc429a783-f68a_62025f3fdb",
+    "fnd_sig-feat-library-3dc429a783-a78d_e1dcd3ff67"
+  ],
+  "patchAttemptIds": [],
+  "errors": []
+}

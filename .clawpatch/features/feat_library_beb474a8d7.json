@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_beb474a8d7",
+  "title": "Node package @docgit/core",
+  "summary": "Node package @docgit/core with package metadata and review context rooted at packages/core.",
+  "kind": "library",
+  "source": "node-package",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "packages/core/package.json",
+      "symbol": "@docgit/core",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/package.json",
+      "reason": "package manifest"
+    },
+    {
+      "path": "packages/core/tsconfig.json",
+      "reason": "typescript configuration"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/core/src/index.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/core/src/model/types.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/core/src/diff/diff.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/core/src/links/format.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/core/src/adapters/excel/parse.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/adapters/grist/client.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/adapters/metadata.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/adapters/parse.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/adapters/powerpoint/parse.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/adapters/word/parse.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/diff/slides.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/diff/spreadsheet.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/links/word-links.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/src/store/store.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/core/test/branching.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/diff.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/excel.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/grist.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/links.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/metadata.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/powerpoint.test.ts",
+      "reason": "package test"
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "reason": "package test"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "package",
+    "project:@docgit/core",
+    "project-root:packages/core",
+    "workspace"
+  ],
+  "trustBoundaries": [],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-beb474a8d7-1cf1_e610de6832",
+    "fnd_sig-feat-library-beb474a8d7-0c16_6b21b88bc1",
+    "fnd_sig-feat-library-beb474a8d7-c5fd_85b5f97254",
+    "fnd_sig-feat-library-beb474a8d7-b084_c0dc45dfaf",
+    "fnd_sig-feat-library-beb474a8d7-473f_d905ba1dc7"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "5 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:24:50.904Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:24:50.905Z"
+}

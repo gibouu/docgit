@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_dacfd13e50",
+  "title": "Node package @docgit/desktop",
+  "summary": "Node package @docgit/desktop with package metadata and review context rooted at apps/desktop.",
+  "kind": "library",
+  "source": "node-package",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "apps/desktop/package.json",
+      "symbol": "@docgit/desktop",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "apps/desktop/package.json",
+      "reason": "package manifest"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "apps/desktop/out/main/index.js",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "apps/desktop/src/main/backup.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/main/settings.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/main/updater.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/preload/index.ts",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/App.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/Modal.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/SettingsMenu.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/components/UpdateBanner.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/main.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/DocumentView.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/Library.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/SentHistory.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "apps/desktop/scripts/render-icon.cjs",
+      "reason": "package source overview"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "package",
+    "project:@docgit/desktop",
+    "project-root:apps/desktop",
+    "workspace"
+  ],
+  "trustBoundaries": [],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-dacfd13e50-ae66_c38c5203a5",
+    "fnd_sig-feat-library-dacfd13e50-3c07_f0494d5737",
+    "fnd_sig-feat-library-dacfd13e50-d69c_230866b350",
+    "fnd_sig-feat-library-dacfd13e50-5136_cc65e4f289",
+    "fnd_sig-feat-library-dacfd13e50-d778_93376007f6"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260620T131952-70ab34",
+      "kind": "review",
+      "summary": "5 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-20T13:23:46.487Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:23:46.487Z"
+}

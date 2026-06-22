@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-641ef069a0-1a0c_85f59f0d4e",
+  "featureId": "feat_library_641ef069a0",
+  "title": "Model-only no-op drops media-only document changes",
+  "category": "data-loss",
+  "severity": "high",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/store/store.ts",
+      "startLine": 433,
+      "endLine": 441,
+      "symbol": "SnapshotStore.commit",
+      "quote": "const modelHash = sha256(modelJson); ... if (head && head.modelHash === modelHash) { return { commit: head, created: false }; } ... const fileHash = sha256(fileBytes);"
+    },
+    {
+      "path": "packages/core/src/model/types.ts",
+      "startLine": 48,
+      "endLine": 62,
+      "symbol": "PresentationModel",
+      "quote": "A shape on a slide reduced to its text"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-06-16-storage-growth-design.md",
+      "startLine": 12,
+      "endLine": 20,
+      "symbol": null,
+      "quote": "Word/Excel/PowerPoint files are zip archives containing many parts ... every image ... media-heavy ones bloat."
+    }
+  ],
+  "reasoning": "The store decides that a save is a no-op before hashing or comparing file bytes. The normalized models intentionally omit user-visible binary content such as embedded images, so a user can change a picture in a document/deck while the parsed model stays identical. That second save is silently discarded, leaving restore/export/branch switching unable to recover that file state.",
+  "reproduction": "Commit an OOXML file with some text and an embedded image, then commit the same extracted text with only the image bytes changed. parseDocument/parsePptx produces the same DocModel, so SnapshotStore.commit returns created:false and the old file bytes remain the branch head.",
+  "recommendation": "Do not use modelHash alone as the persistence no-op boundary. Either include hashes for user-visible non-text parts in DocModel, or compare/store fileHash as well and only treat a save as unchanged when both the semantic model and relevant file content are unchanged.",
+  "whyTestsDoNotAlreadyCoverThis": "store.test.ts only checks the no-op path with generated documents whose parsed model and bytes are effectively the same scenario; it does not create two different files that parse to the same model.",
+  "suggestedRegressionTest": "Add a core test that commits two OOXML byte arrays with the same parsed text model but different media/part bytes, then asserts the second commit is created and getFileBytes returns the newer bytes.",
+  "minimumFixScope": "SnapshotStore.commit no-op/coalesce criteria plus model/adapters or a normalized file-content hash for visible non-text OOXML parts.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-641ef069a0_1a0cedc17e",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260620T131952-70ab34",
+  "createdAt": "2026-06-20T13:23:32.043Z",
+  "updatedAt": "2026-06-20T13:23:32.043Z"
+}

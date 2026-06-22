@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-3dc429a783-a78d_e1dcd3ff67",
+  "featureId": "feat_library_3dc429a783",
+  "title": "Database restore overwrites the live database non-atomically after disposing the service",
+  "category": "data-loss",
+  "severity": "medium",
+  "confidence": "medium",
+  "triage": "risk",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/main/backup.ts",
+      "startLine": 31,
+      "endLine": 34,
+      "symbol": "restoreDatabase",
+      "quote": "export function restoreDatabase(dbPath: string, srcPath: string): void {\n  assertDocgitDb(srcPath);\n  if (existsSync(dbPath)) copyFileSync(dbPath, `${dbPath}.bak`);\n  copyFileSync(srcPath, dbPath);"
+    },
+    {
+      "path": "apps/desktop/src/main/index.ts",
+      "startLine": 204,
+      "endLine": 210,
+      "symbol": "backup:restore IPC handler",
+      "quote": "assertDocgitDb(src); // validate BEFORE touching anything; throws -> renderer shows error, nothing changed\n    const dbPath = join(app.getPath('userData'), 'docgit.db');\n    service?.dispose(); // close the live DB before swapping the file\n    service = null; // prevent a second dispose() on the closed handle (quit path)\n    restoreDatabase(dbPath, src); // saves docgit.db.bak, then overwrites\n    app.relaunch();\n    app.exit(0);"
+    }
+  ],
+  "reasoning": "restoreDatabase copies directly over docgit.db. If the destination copy fails partway, the main database path can be left truncated or otherwise invalid, and the IPC handler has already disposed the live service before attempting the copy. The exception path does not reopen the store or force a relaunch, so the running app can be left with disposed handlers and a damaged database file despite having validated the backup first.",
+  "reproduction": "Trigger backup restore while the destination copy fails, for example by making the data directory unwritable after validation or exhausting disk space during copy. The service is already closed and docgit.db may be partially overwritten.",
+  "recommendation": "Restore via a temp file in the same directory: copy the backup to temp, validate/open the temp, then atomically rename it over docgit.db only after the copy completes. If restore fails after disposing the service, relaunch/reopen the original store or exit with a clear recovery path using docgit.db.bak.",
+  "whyTestsDoNotAlreadyCoverThis": "The smoke test covers only a successful backup/restore round trip and invalid source validation; it does not simulate copy failure after service disposal or partial destination writes.",
+  "suggestedRegressionTest": "Inject a failing copy/rename path for restoreDatabase and assert the original dbPath remains valid and the service is not left disposed in a recoverable IPC error path.",
+  "minimumFixScope": "restoreDatabase plus the backup:restore IPC handler's failure path.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-3dc429a783_a78d59fa7a",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:43:43.146Z",
+  "updatedAt": "2026-06-19T10:43:43.146Z"
+}

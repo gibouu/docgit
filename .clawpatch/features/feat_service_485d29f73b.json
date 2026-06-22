@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_service_485d29f73b",
+  "title": "Node source packages/core/src/store",
+  "summary": "Node/TypeScript source file packages/core/src/store/store.ts.",
+  "kind": "service",
+  "source": "node-source-group",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "packages/core/package.json",
+      "symbol": "packages/core/src/store",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/store/store.ts",
+      "reason": "source group packages/core/src/store"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/package.json",
+      "reason": "package manifest"
+    },
+    {
+      "path": "packages/core/test/store.test.ts",
+      "reason": "associated test"
+    }
+  ],
+  "tests": [
+    {
+      "path": "packages/core/test/store.test.ts",
+      "command": "pnpm --dir packages/core test"
+    }
+  ],
+  "tags": [
+    "node",
+    "typescript",
+    "source-group",
+    "project:@docgit/core",
+    "project-root:packages/core"
+  ],
+  "trustBoundaries": [
+    "filesystem",
+    "database"
+  ],
+  "status": "pending",
+  "lock": null,
+  "findingIds": [],
+  "patchAttemptIds": [],
+  "analysisHistory": [],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}

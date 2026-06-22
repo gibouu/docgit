@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-3dc429a783-f68a_62025f3fdb",
+  "featureId": "feat_library_3dc429a783",
+  "title": "Failed first snapshots leave persistent zero-version documents",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 153,
+      "endLine": 158,
+      "symbol": "DocumentService.addDocument",
+      "quote": "const doc = this.store.addDocument(path);\n    this.commitPath(doc.path, 'Added to DocGit');\n    this.watch(doc);\n    this.onChanged(doc.id);\n    return doc;"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 639,
+      "endLine": 653,
+      "symbol": "DocumentService.commitPath",
+      "quote": "return undefined; // transient: editor mid-save or file temporarily gone"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 315,
+      "endLine": 322,
+      "symbol": "DocumentService.addGristDocument",
+      "quote": "const doc = this.store.addDocument(key, `${remoteDocId} · Grist`);\n    this.store.setRemote(doc.id, { kind: 'grist', baseUrl, remoteDocId, ...(apiKey ? { apiKey } : {}) });\n    await this.syncRemote(doc.id);\n    this.startPoller(doc.id);\n    this.onChanged(doc.id);"
+    }
+  ],
+  "reasoning": "Both local and Grist document creation persist the document row before proving that the initial snapshot can be captured. Local add ignores commitPath returning undefined on read/parse failure, then starts watching and returns success. Grist add writes the document and remote rows before awaiting syncRemote; if the network/auth call throws, the IPC reports failure but the half-added remote remains in the store. This creates documents with no usable first version and can break later flows that assume a head commit exists.",
+  "reproduction": "Add an unsupported/corrupt file through docs:addPath, or connect Grist to a URL that fails after validation. The add operation either returns a tracked local document with versionCount 0 or throws while leaving a remote document row behind.",
+  "recommendation": "Only persist a document after the initial snapshot succeeds, or wrap creation plus first commit/sync in a rollback-capable transaction. At minimum, if commitPath or syncRemote fails during add, delete the newly-created document row and surface the original error.",
+  "whyTestsDoNotAlreadyCoverThis": "The included smoke path adds only parseable local files and a successful mock Grist server; there is no failing initial snapshot or failing remote connect case.",
+  "suggestedRegressionTest": "Assert that adding a corrupt local Office file and connecting to an unreachable Grist server both leave listDocuments unchanged and return a user-facing error.",
+  "minimumFixScope": "DocumentService.addDocument and addGristDocument error handling around initial commit/sync.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-3dc429a783_f68a893fc3",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:43:43.146Z",
+  "updatedAt": "2026-06-19T10:43:43.146Z"
+}

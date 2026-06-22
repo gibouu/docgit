@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_cli-command_07f41ac7b3",
+  "title": "CLI command docgit",
+  "summary": "Package bin 'docgit' at ./dist/cli.js, source packages/core/src/cli.ts.",
+  "kind": "cli-command",
+  "source": "package-json-bin",
+  "confidence": "high",
+  "entrypoints": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "symbol": null,
+      "route": null,
+      "command": "docgit"
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/core/src/cli.ts",
+      "reason": "entrypoint"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/core/package.json",
+      "reason": "package manifest"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "cli"
+  ],
+  "trustBoundaries": [
+    "user-input",
+    "filesystem",
+    "process-exec"
+  ],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-cli-command-07f41ac7b3-_036e894b6c",
+    "fnd_sig-feat-cli-command-07f41ac7b3-_8fc11a2b15"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260619T103920-c1abb7",
+      "kind": "review",
+      "summary": "2 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-19T10:39:59.356Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}

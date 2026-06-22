@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-b360561c34-8b32_70c85a4a17",
+  "featureId": "feat_library_b360561c34",
+  "title": "Icon rendering script is not covered by automated tests",
+  "category": "test-gap",
+  "severity": "low",
+  "confidence": "high",
+  "triage": "test-gap",
+  "evidence": [
+    {
+      "path": "apps/desktop/package.json",
+      "startLine": 13,
+      "endLine": 15,
+      "symbol": "scripts",
+      "quote": "\"test\": \"echo 'desktop: covered by smoke test (pnpm smoke) and core tests'\""
+    },
+    {
+      "path": "apps/desktop/scripts/render-icon.cjs",
+      "startLine": 21,
+      "endLine": 24,
+      "symbol": null,
+      "quote": "await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);\n    await new Promise((r) => setTimeout(r, 600));\n    const image = await win.webContents.capturePage({ x: 0, y: 0, width: 1024, height: 1024 });\n    writeFileSync(process.argv[3], image.toPNG());"
+    }
+  ],
+  "reasoning": "The standalone icon command performs Electron rendering and writes a release asset, but the desktop test script only echoes a coverage statement and no linked tests exercise this path. Regressions such as blank output, wrong dimensions, alpha loss, or capture timing changes would not be caught by the declared test command.",
+  "reproduction": null,
+  "recommendation": "Add a focused automated smoke test for the icon command that renders to a temporary PNG and validates that the output exists, is a PNG, and has the expected 1024x1024 dimensions with transparency preserved.",
+  "whyTestsDoNotAlreadyCoverThis": "The feature has no linked tests, and apps/desktop/package.json does not run scripts/render-icon.cjs from its test script.",
+  "suggestedRegressionTest": "Run `electron scripts/render-icon.cjs build/icon.svg <tmp>/icon-1024.png` in a desktop test or CI step, then assert the file is a valid 1024x1024 PNG and includes transparent pixels.",
+  "minimumFixScope": "Add test or CI coverage for apps/desktop/scripts/render-icon.cjs; production code changes are not required for this finding.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-b360561c34_8b32850836",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:41:27.792Z",
+  "updatedAt": "2026-06-19T10:41:27.792Z"
+}

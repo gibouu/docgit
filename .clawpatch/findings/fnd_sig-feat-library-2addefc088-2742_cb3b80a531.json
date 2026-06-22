@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-2addefc088-2742_cb3b80a531",
+  "featureId": "feat_library_2addefc088",
+  "title": "Tracked move deletions are included in the final Word text",
+  "category": "bug",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "packages/core/src/adapters/word/parse.ts",
+      "startLine": 10,
+      "endLine": 13,
+      "symbol": null,
+      "quote": "Tracked changes are resolved to the document's *final* state"
+    },
+    {
+      "path": "packages/core/src/adapters/word/parse.ts",
+      "startLine": 125,
+      "endLine": 142,
+      "symbol": "collectRunText",
+      "quote": "case 'w:del': ... default: text += collectRunText(childrenOf(node));"
+    },
+    {
+      "path": "packages/core/test/parse.test.ts",
+      "startLine": 46,
+      "endLine": 55,
+      "symbol": null,
+      "quote": "resolves tracked changes to the final document state (w:ins kept, w:del dropped)"
+    }
+  ],
+  "reasoning": "Word represents tracked moves with w:moveFrom for the old location and w:moveTo for the new location. The adapter promises final-state parsing and skips w:del/w:delText, but all other containers recurse, so w:moveFrom text is retained instead of being treated like deleted text. Documents with pending tracked moves will show duplicated or stale text in DocGit diffs.",
+  "reproduction": "Create a docx paragraph containing <w:moveFrom><w:r><w:t>old place</w:t></w:r></w:moveFrom><w:moveTo><w:r><w:t>new place</w:t></w:r></w:moveTo>. parseDocx currently includes both strings; final-state text should include only the moveTo content.",
+  "recommendation": "Treat w:moveFrom and w:moveFromRangeStart/w:moveFromRangeEnd subtrees as deleted content, while continuing to recurse into w:moveTo like w:ins.",
+  "whyTestsDoNotAlreadyCoverThis": "The tracked-change test only covers w:del and w:ins, so the default recursion path for w:moveFrom is never exercised.",
+  "suggestedRegressionTest": "Add a parseDocx test with w:moveFrom and w:moveTo in one paragraph and assert only the moved-to text remains.",
+  "minimumFixScope": "Update collectRunText in the Word adapter and add a focused tracked-move fixture.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-2addefc088_2742f3bb9f",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:42:26.526Z",
+  "updatedAt": "2026-06-19T10:42:26.526Z"
+}

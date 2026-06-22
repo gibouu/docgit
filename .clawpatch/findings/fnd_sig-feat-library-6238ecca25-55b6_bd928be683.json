@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-6238ecca25-55b6_bd928be683",
+  "featureId": "feat_library_6238ecca25",
+  "title": "Grist cell references are uppercased when creating links",
+  "category": "api-contract",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "contract-mismatch",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "startLine": 118,
+      "endLine": 120,
+      "symbol": "AddLinkDialog",
+      "quote": "void window.docgit.workbookCell(sourceId, sheet, cellRef).then(setCell);"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "startLine": 142,
+      "endLine": 149,
+      "symbol": "AddLinkDialog",
+      "quote": "cellRef: cellRef.toUpperCase(),"
+    },
+    {
+      "path": "apps/desktop/src/renderer/src/views/LinksSection.tsx",
+      "startLine": 189,
+      "endLine": 193,
+      "symbol": "AddLinkDialog",
+      "quote": "placeholder=\"B14 (Excel) or Amount:1 (Grist)\""
+    }
+  ],
+  "reasoning": "The preview lookup uses the user-entered cellRef, and the UI explicitly supports Grist refs such as Amount:1. On submit, the renderer uppercases every ref before sending it to the API. Excel refs tolerate that, but Grist column ids are case-sensitive, so the exact placeholder example previews successfully and then submits AMOUNT:1, causing createLink to target a different or missing cell.",
+  "reproduction": "Connect a Grist source with a mixed-case column id such as Amount, open Link a value, enter Amount:1, observe the preview, then click Link it. The submitted payload uses AMOUNT:1 instead of Amount:1.",
+  "recommendation": "Do not uppercase in the renderer. Send the raw cellRef and let the main-side API normalize only Excel-style refs, or apply the same Excel-only /^[A-Za-z]+\\d+$/ guard before uppercasing.",
+  "whyTestsDoNotAlreadyCoverThis": "The feature lists no linked tests, and the desktop package test script is an echo. Existing smoke coverage exercises Grist linking through the service layer, not this renderer payload transformation.",
+  "suggestedRegressionTest": "Add a renderer or integration test for AddLinkDialog with a Grist workbook where Amount:1 previews and createLink receives cellRef: \"Amount:1\" unchanged.",
+  "minimumFixScope": "apps/desktop/src/renderer/src/views/LinksSection.tsx create payload construction.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-6238ecca25_55b6d1c030",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:43:33.423Z",
+  "updatedAt": "2026-06-19T10:43:33.423Z"
+}

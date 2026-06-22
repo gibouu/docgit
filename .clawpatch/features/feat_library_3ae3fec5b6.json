@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "featureId": "feat_library_3ae3fec5b6",
+  "title": "Node package @docgit/ui",
+  "summary": "Node package @docgit/ui with package metadata and review context rooted at packages/ui.",
+  "kind": "library",
+  "source": "node-package",
+  "confidence": "medium",
+  "entrypoints": [
+    {
+      "path": "packages/ui/package.json",
+      "symbol": "@docgit/ui",
+      "route": null,
+      "command": null
+    }
+  ],
+  "ownedFiles": [
+    {
+      "path": "packages/ui/package.json",
+      "reason": "package manifest"
+    },
+    {
+      "path": "packages/ui/tsconfig.json",
+      "reason": "typescript configuration"
+    }
+  ],
+  "contextFiles": [
+    {
+      "path": "packages/ui/src/index.ts",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/ui/dist/styles.css",
+      "reason": "package entrypoint"
+    },
+    {
+      "path": "packages/ui/src/BranchGraph.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/ui/src/DiffView.tsx",
+      "reason": "package source overview"
+    },
+    {
+      "path": "packages/ui/src/HorizontalBranchGraph.tsx",
+      "reason": "package source overview"
+    }
+  ],
+  "tests": [],
+  "tags": [
+    "node",
+    "package",
+    "project:@docgit/ui",
+    "project-root:packages/ui",
+    "workspace"
+  ],
+  "trustBoundaries": [],
+  "status": "needs-fix",
+  "lock": null,
+  "findingIds": [
+    "fnd_sig-feat-library-3ae3fec5b6-3aac_fb06544828",
+    "fnd_sig-feat-library-3ae3fec5b6-7114_62955e3a49",
+    "fnd_sig-feat-library-3ae3fec5b6-2028_edbf511b53"
+  ],
+  "patchAttemptIds": [],
+  "analysisHistory": [
+    {
+      "runId": "20260619T103920-c1abb7",
+      "kind": "review",
+      "summary": "3 finding(s)",
+      "provider": "codex",
+      "model": null,
+      "reasoningEffort": null,
+      "createdAt": "2026-06-19T10:42:24.494Z"
+    }
+  ],
+  "createdAt": "2026-06-19T10:39:13.915Z",
+  "updatedAt": "2026-06-20T13:16:29.853Z"
+}

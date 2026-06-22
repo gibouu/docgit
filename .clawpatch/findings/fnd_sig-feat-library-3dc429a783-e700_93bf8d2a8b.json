@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "findingId": "fnd_sig-feat-library-3dc429a783-e700_93bf8d2a8b",
+  "featureId": "feat_library_3dc429a783",
+  "title": "Link refresh marks links updated before the document write succeeds",
+  "category": "data-loss",
+  "severity": "medium",
+  "confidence": "high",
+  "triage": "confirmed-bug",
+  "evidence": [
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 581,
+      "endLine": 587,
+      "symbol": "DocumentService.refreshLinks",
+      "quote": "if (display !== link.lastValue) {\n        const refreshed = refreshLinkedValue(bytes, link.id, display);\n        if (!refreshed) continue; // control deleted in Word — registry row is now inert\n        bytes = refreshed.bytes;\n        changes.push(`${link.sheet}!${link.cellRef}: ${refreshed.oldValue} → ${display}`);\n      }\n      this.store.updateLinkValue(link.id, display, sourceHead.id);"
+    },
+    {
+      "path": "apps/desktop/src/main/service.ts",
+      "startLine": 590,
+      "endLine": 593,
+      "symbol": "DocumentService.refreshLinks",
+      "quote": "if (changes.length > 0) {\n      const sourceNames = [...new Set(links.map((l) => this.store.getDocument(l.sourceDocumentId).name))];\n      writeFileSync(doc.path, bytes);\n      this.commitPath(doc.path, `Updated from ${sourceNames.join(', ')} — ${changes.join('; ')}`);"
+    }
+  ],
+  "reasoning": "refreshLinks persists lastValue and lastSourceCommitId inside the loop before writing the modified Word document and before committing the resulting version. If writeFileSync throws, or the later commit is skipped, the registry says the link has pulled the new source value while the document still contains the old value. Later refreshes compare against the already-updated lastValue and can skip the repair indefinitely.",
+  "reproduction": "Make a linked target document unwritable, change the source workbook, and call refreshLinks. The write throws after updateLinkValue has persisted the new value/source commit, leaving links() non-stale even though the target file was not updated.",
+  "recommendation": "Stage link metadata updates until after the file write and version commit succeed. Prefer a transaction or explicit rollback around link row updates, and only advance lastValue/lastSourceCommitId for links whose document update was durably written.",
+  "whyTestsDoNotAlreadyCoverThis": "The smoke test verifies successful link propagation, but it does not simulate write failure or commit failure during refreshLinks.",
+  "suggestedRegressionTest": "Create a linked document, change the source, force the target write or commit to fail, then assert the link remains stale and lastValue still reflects the value actually present in the document.",
+  "minimumFixScope": "DocumentService.refreshLinks ordering around updateLinkValue, writeFileSync, and commitPath.",
+  "status": "open",
+  "history": [],
+  "signature": "sig_feat-library-3dc429a783_e7005fe43e",
+  "linkedPatchAttemptIds": [],
+  "createdByRunId": "20260619T103920-c1abb7",
+  "createdAt": "2026-06-19T10:43:43.146Z",
+  "updatedAt": "2026-06-19T10:43:43.146Z"
+}
