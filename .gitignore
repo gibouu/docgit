@@ -8,3 +8,6 @@ coverage/
 out/
 release/
 .claude/state/
+
+# Local agent tooling state (not part of the project)
+.clawpatch/
