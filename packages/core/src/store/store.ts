@@ -732,7 +732,10 @@ export class SnapshotStore {
    */
   private storeFileBytes(fileHash: string, fileBytes: Uint8Array): void {
     const parts = decomposeOoxml(fileBytes);
-    if (!parts) {
+    // No parts (non-OOXML, or a degenerate zip with zero entries) → store the
+    // whole file as one blob. Storing nothing would leave getFileBytes with no
+    // manifest AND no blob to fall back to — an unreadable version.
+    if (!parts || parts.length === 0) {
       this.putObject(fileHash, Buffer.from(fileBytes));
       return;
     }

@@ -204,3 +204,22 @@ Planned fix, in order:
   documents lived on the original machine. History and version *content* are fully
   intact, but if the actual files now live elsewhere (new Mac, moved folders),
   live-watching may need them re-added at their new locations.
+
+## 10. Part-level object store (#25, Stage 1)
+
+OOXML files (`.docx/.xlsx/.pptx`) are exploded into their internal zip parts,
+each stored once (content-addressed) with a `file_parts` manifest per version;
+the file is reconstructed by re-zipping on read. Embedded media is stored once
+across edits instead of once per version — the storage-growth fix.
+
+- **Content-identical, not byte-identical.** Reconstruction re-zips with fflate,
+  which can't reproduce Office's exact container bytes. Nothing depends on
+  byte-identity (restore/coalesce key on `model_hash`; live-links already ships
+  re-zipped files), so this is safe — but `getFileBytes` for an OOXML version is
+  not guaranteed to equal the original bytes, only to re-parse to the same model.
+- **Non-OOXML and degenerate zips stay whole.** A non-zip file, or a zip that
+  decomposes to zero parts, is stored as one whole-file blob (byte-exact). Legacy
+  pre-#25 whole-file OOXML blobs keep working via the same fallback.
+- **Deferred GC (Stage 3).** `deleteDocument` and auto-save coalescing can orphan
+  `file_parts`/`objects` rows; nothing reads them, but they aren't reclaimed yet.
+  Backfill of legacy whole-file blobs and a vacuum sweep are Stage 3 of #25.

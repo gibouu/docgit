@@ -105,6 +105,15 @@ describe('part-level object store (#25)', () => {
     expect(Buffer.from(store.getFileBytes(commit))).toEqual(Buffer.from(bytes));
   });
 
+  it('stores an OOXML file that decomposes to zero parts (empty zip) as a whole blob', () => {
+    // A valid zip with no entries: decomposeOoxml returns [] (non-null but
+    // empty). It must NOT vanish — store the whole file so it can be read back.
+    const empty = zipSync({});
+    const model = parseDocx(makeDocx('<w:p/>'));
+    const { commit } = store.commit('/Users/test/empty.docx', empty, model);
+    expect(Buffer.from(store.getFileBytes(commit))).toEqual(Buffer.from(empty));
+  });
+
   it('migrates a legacy DB (drops the file_hash FK) and still reads old whole-file blobs', () => {
     // Hand-build a pre-#25 store: commits.file_hash carries the objects(hash) FK,
     // and an OOXML file is stored as ONE whole-file blob (the old representation).
