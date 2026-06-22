@@ -15,9 +15,21 @@ on:
       - ".claude/**"
       - ".clawpatch/**"
 
+# Cancel superseded runs on the same ref — rapid pushes no longer stack billable
+# runs (only the latest finishes).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: macos-latest
+    # Linux is ~10x cheaper than macOS. DocGit is an Electron/Node app — build,
+    # typecheck, tests, and the headless boot smoke all run on Linux. macOS is
+    # only needed to package/notarize the .dmg, which lives in release.yml
+    # (tag-triggered, infrequent). Electron needs a virtual display on Linux,
+    # so the smoke runs under xvfb (preinstalled on ubuntu-latest).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -31,4 +43,4 @@ jobs:
       - run: pnpm test
       # Full-stack smoke inside Electron's runtime (headless): node:sqlite,
       # core engine, document service — fails CI if the app cannot boot.
-      - run: pnpm --filter @docgit/desktop smoke
+      - run: xvfb-run -a pnpm --filter @docgit/desktop smoke

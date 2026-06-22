@@ -7,4 +7,6 @@
 - Full product spec: `docs/SPEC.md`. Architecture decisions: `docs/decisions/`.
 - Verify with `pnpm build && pnpm typecheck && pnpm test` at the root, plus
   `pnpm --filter @docgit/desktop smoke` (headless Electron: full-stack smoke
-  + renderer boot check). CI runs all of it on macOS.
+  + renderer boot check). CI runs all of it on Linux (ubuntu-latest, ~10x
+  cheaper than macOS; the smoke runs under xvfb). macOS is used only by
+  release.yml to package/notarize the .dmg on a version tag.
