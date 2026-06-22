@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { unzipSync, zipSync } from 'fflate';
 import { canonicalJson, type DocModel } from '../model/types.js';
 
 /**
@@ -121,6 +122,25 @@ function sha256(data: Uint8Array | string): string {
   return createHash('sha256').update(data).digest('hex');
 }
 
+/**
+ * Split an OOXML file (a zip: .docx/.xlsx/.pptx) into its internal parts, in
+ * archive order, each as its raw decompressed bytes. Returns null for anything
+ * that is not a zip (a .grist SQLite snapshot, a plain binary), so the caller
+ * falls back to storing the whole file. Storing parts decompressed makes dedup
+ * robust to re-compression differences.
+ */
+function decomposeOoxml(bytes: Uint8Array): { path: string; bytes: Uint8Array }[] | null {
+  // Local file header magic "PK\x03\x04" (or the empty-archive "PK\x05\x06").
+  if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) return null;
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(bytes);
+  } catch {
+    return null; // looked like a zip but wasn't a valid one
+  }
+  return Object.keys(entries).map((path) => ({ path, bytes: entries[path]! }));
+}
+
 /** Remote documents are keyed by opaque URLs, never resolved against the fs. */
 export function isRemoteKey(path: string): boolean {
   return /^[a-z][a-z0-9+]*:\/\//i.test(path);
@@ -223,7 +243,9 @@ export class SnapshotStore {
         branch_id   TEXT NOT NULL REFERENCES branches(id),
         parent_id   TEXT REFERENCES commits(id),
         model_hash  TEXT NOT NULL REFERENCES objects(hash),
-        file_hash   TEXT NOT NULL REFERENCES objects(hash),
+        -- No FK to objects(hash): OOXML files resolve via the file_parts
+        -- manifest, so file_hash is a content key, not always an object hash.
+        file_hash   TEXT NOT NULL,
         message     TEXT,
         author      TEXT,
         created_at  TEXT NOT NULL
@@ -249,6 +271,14 @@ export class SnapshotStore {
       );
       CREATE INDEX IF NOT EXISTS idx_links_doc ON links(doc_document_id);
       CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_document_id);
+      CREATE TABLE IF NOT EXISTS file_parts (
+        manifest_hash TEXT NOT NULL,      -- == commits.file_hash (sha256 of the original file)
+        part_path     TEXT NOT NULL,      -- zip entry name, e.g. "word/media/image1.png"
+        part_hash     TEXT NOT NULL REFERENCES objects(hash),  -- sha256 of the part's decompressed bytes
+        ordinal       INTEGER NOT NULL,   -- original entry order, for a stable re-zip
+        PRIMARY KEY (manifest_hash, part_path)
+      );
+      CREATE INDEX IF NOT EXISTS idx_file_parts_manifest ON file_parts(manifest_hash);
     `);
     // Columns added after v2 shipped — idempotent ALTERs for existing stores.
     this.ensureColumn('branches', 'forked_from_commit_id TEXT');
@@ -256,6 +286,11 @@ export class SnapshotStore {
     this.ensureColumn('documents', 'shared INTEGER NOT NULL DEFAULT 0');
     this.ensureColumn('documents', 'my_name TEXT');
     this.ensureColumn('branches', 'reason TEXT');
+    // Existing DBs baked a commits.file_hash → objects(hash) FK that the part
+    // store breaks (OOXML file_hash now keys a manifest, not a whole-file blob).
+    // Rebuild the table to drop just that FK — only when it's actually present,
+    // so new DBs (already correct) are untouched.
+    if (this.commitsHasFileHashFk()) this.rebuildCommitsWithoutFileHashFk();
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS remotes (
         document_id   TEXT PRIMARY KEY REFERENCES documents(id),
@@ -264,7 +299,7 @@ export class SnapshotStore {
         remote_doc_id TEXT NOT NULL,
         api_key       TEXT
       );
-      PRAGMA user_version = 4;
+      PRAGMA user_version = 5;
       CREATE INDEX IF NOT EXISTS idx_commits_document ON commits(document_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_branches_document ON branches(document_id, position);
       CREATE INDEX IF NOT EXISTS idx_sends_commit ON sends(commit_id);
@@ -281,6 +316,44 @@ export class SnapshotStore {
     } catch {
       // column already exists
     }
+  }
+
+  private commitsHasFileHashFk(): boolean {
+    const fks = this.db.prepare('PRAGMA foreign_key_list(commits)').all() as unknown as {
+      table: string;
+      from: string;
+    }[];
+    return fks.some((fk) => fk.from === 'file_hash' && fk.table === 'objects');
+  }
+
+  /** Rebuild commits to drop only the file_hash→objects FK (keep all others). */
+  private rebuildCommitsWithoutFileHashFk(): void {
+    this.db.exec('PRAGMA foreign_keys = OFF');
+    this.db.exec('BEGIN');
+    try {
+      this.db.exec(`
+        CREATE TABLE commits_new (
+          id          TEXT PRIMARY KEY,
+          document_id TEXT NOT NULL REFERENCES documents(id),
+          branch_id   TEXT NOT NULL REFERENCES branches(id),
+          parent_id   TEXT REFERENCES commits(id),
+          model_hash  TEXT NOT NULL REFERENCES objects(hash),
+          file_hash   TEXT NOT NULL,
+          message     TEXT,
+          author      TEXT,
+          created_at  TEXT NOT NULL
+        );
+        INSERT INTO commits_new (id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at)
+          SELECT id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at FROM commits;
+        DROP TABLE commits;
+        ALTER TABLE commits_new RENAME TO commits;
+      `);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    this.db.exec('PRAGMA foreign_keys = ON');
   }
 
   private inTransaction = false;
@@ -305,6 +378,12 @@ export class SnapshotStore {
     } finally {
       this.inTransaction = false;
     }
+  }
+
+  /** Total bytes held in the object store (powers a "storage used" figure). */
+  storageBytes(): number {
+    const row = this.db.prepare('SELECT COALESCE(SUM(LENGTH(data)), 0) AS n FROM objects').get() as { n: number };
+    return Number(row.n);
   }
 
   /** Flush the WAL into the main database file (so a file copy is a complete backup). */
@@ -527,7 +606,7 @@ export class SnapshotStore {
     );
     this.tx(() => {
       this.putObject(data.modelHash, Buffer.from(data.modelJson, 'utf8'));
-      this.putObject(data.fileHash, Buffer.from(data.fileBytes));
+      this.storeFileBytes(data.fileHash, data.fileBytes);
       this.db
         .prepare(
           `INSERT INTO commits (id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at)
@@ -581,7 +660,7 @@ export class SnapshotStore {
     const id = sha256(JSON.stringify([documentId, branchId, parentId, data.modelHash, data.fileHash, data.message, createdAt]));
     this.tx(() => {
       if (data.modelJson !== undefined) this.putObject(data.modelHash, Buffer.from(data.modelJson, 'utf8'));
-      if (data.fileBytes !== undefined) this.putObject(data.fileHash, Buffer.from(data.fileBytes));
+      if (data.fileBytes !== undefined) this.storeFileBytes(data.fileHash, data.fileBytes);
       this.db
         .prepare(
           `INSERT INTO commits (id, document_id, branch_id, parent_id, model_hash, file_hash, message, author, created_at)
@@ -630,7 +709,43 @@ export class SnapshotStore {
   }
 
   getFileBytes(commit: CommitRow): Uint8Array {
-    return this.getObject(commit.fileHash);
+    const parts = this.db
+      .prepare('SELECT part_path, part_hash FROM file_parts WHERE manifest_hash = ? ORDER BY ordinal')
+      .all(commit.fileHash) as unknown as { part_path: string; part_hash: string }[];
+    if (parts.length === 0) {
+      return this.getObject(commit.fileHash); // legacy whole-file blob (or non-OOXML)
+    }
+    // Reconstruct the OOXML container from its parts. Content-identical, not
+    // byte-identical (fflate can't reproduce Office's exact bytes) — nothing in
+    // DocGit depends on byte-identity, and live-links already ships re-zipped
+    // files, so this is proven-safe.
+    const files: Record<string, Uint8Array> = {};
+    for (const part of parts) files[part.part_path] = this.getObject(part.part_hash);
+    return zipSync(files);
+  }
+
+  /**
+   * Persist a commit's file bytes. OOXML files are exploded into parts stored
+   * once each (content-addressed) plus a manifest keyed by the file hash; the
+   * whole-file blob is deliberately NOT stored — that is where the space goes.
+   * Non-OOXML files fall back to a single whole-file blob (legacy path).
+   */
+  private storeFileBytes(fileHash: string, fileBytes: Uint8Array): void {
+    const parts = decomposeOoxml(fileBytes);
+    // No parts (non-OOXML, or a degenerate zip with zero entries) → store the
+    // whole file as one blob. Storing nothing would leave getFileBytes with no
+    // manifest AND no blob to fall back to — an unreadable version.
+    if (!parts || parts.length === 0) {
+      this.putObject(fileHash, Buffer.from(fileBytes));
+      return;
+    }
+    parts.forEach((part, ordinal) => {
+      const partHash = sha256(part.bytes);
+      this.putObject(partHash, Buffer.from(part.bytes));
+      this.db
+        .prepare('INSERT OR IGNORE INTO file_parts (manifest_hash, part_path, part_hash, ordinal) VALUES (?, ?, ?, ?)')
+        .run(fileHash, part.path, partHash, ordinal);
+    });
   }
 
   /**

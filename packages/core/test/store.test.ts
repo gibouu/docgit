@@ -42,12 +42,14 @@ describe('SnapshotStore', () => {
     expect(store.log(docPath)).toHaveLength(1);
   });
 
-  it('round-trips the normalized model and original bytes', () => {
+  it('round-trips the normalized model and reconstructs the file content-identical', () => {
     const bytes = docxFromParagraphs(['hello', 'world']);
     const model = parseDocx(bytes);
     const { commit } = store.commit(docPath, bytes, model);
     expect(store.getModel(commit)).toEqual(model);
-    expect(Buffer.from(store.getFileBytes(commit))).toEqual(Buffer.from(bytes));
+    // OOXML is stored part-wise, so the reconstructed container is
+    // content-identical (re-parses to the same model), not byte-identical.
+    expect(parseDocx(store.getFileBytes(commit))).toEqual(model);
   });
 
   it('deduplicates identical objects across documents (content-addressed)', () => {
