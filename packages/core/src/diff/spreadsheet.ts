@@ -55,8 +55,9 @@ export function diffSpreadsheetModels(oldModel: SpreadsheetModel, newModel: Spre
   for (const [name, newSheet] of newSheets) {
     const oldSheet = oldSheets.get(name);
     if (!oldSheet) {
-      // Whole sheet added: every cell is an addition.
-      for (const [ref, value] of Object.entries(newSheet.cells)) {
+      // Whole sheet added: every cell is an addition, in row-major order.
+      for (const ref of sortRefs(new Set(Object.keys(newSheet.cells)))) {
+        const value = newSheet.cells[ref]!;
         cellChanges.push({ sheet: name, ref, type: 'added', newValue: value, formulaChanged: !!value.f });
         summary.cellsAdded++;
         if (value.f) summary.formulasChanged++;
@@ -90,7 +91,9 @@ export function diffSpreadsheetModels(oldModel: SpreadsheetModel, newModel: Spre
   }
 
   for (const name of summary.sheetsRemoved) {
-    for (const [ref, value] of Object.entries(oldSheets.get(name)!.cells)) {
+    const cells = oldSheets.get(name)!.cells;
+    for (const ref of sortRefs(new Set(Object.keys(cells)))) {
+      const value = cells[ref]!;
       cellChanges.push({ sheet: name, ref, type: 'removed', oldValue: value, formulaChanged: !!value.f });
       summary.cellsRemoved++;
       if (value.f) summary.formulasChanged++;

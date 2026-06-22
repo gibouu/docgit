@@ -97,4 +97,15 @@ describe('spreadsheet diff', () => {
     const text = { kind: 'text' as const, blocks: [] };
     expect(() => diffModels(text, modelOf({ A1: 'x' }))).toThrow(/different kinds/);
   });
+
+  it('emits cells of a wholly-added sheet in row-major order (#109)', () => {
+    const before = { kind: 'spreadsheet' as const, sheets: [] };
+    const after = {
+      kind: 'spreadsheet' as const,
+      sheets: [{ name: 'New', cells: { B2: { v: '4' }, A1: { v: '1' }, A2: { v: '3' }, B1: { v: '2' } } }],
+    };
+    const diff = diffModels(before, after);
+    if (diff.kind !== 'spreadsheet') throw new Error('expected a spreadsheet diff');
+    expect(diff.cellChanges.filter((c) => c.sheet === 'New').map((c) => c.ref)).toEqual(['A1', 'B1', 'A2', 'B2']);
+  });
 });
