@@ -644,6 +644,13 @@ async function runSmokeTest(): Promise<void> {
     if (!installers.every((i) => /DocGit/i.test(i.path))) throw new Error('cleanup matched a non-DocGit file');
     rmSync(dlDir, { recursive: true, force: true });
 
+    // Log rotation: once the file passes the cap, it rotates to <path>.1.
+    const { appendLog } = await import('./log.js');
+    const logFile = join(dir, 'rotate.log');
+    appendLog(logFile, 'x'.repeat(120), 50); // first write: file now exceeds the 50-byte cap
+    appendLog(logFile, 'second entry', 50); // size > cap → rotate to .1, fresh file
+    if (!existsSync(`${logFile}.1`)) throw new Error('activity.log did not rotate past the cap');
+
     console.log('SMOKE OK: electron', process.versions.electron, '/ node', process.versions.node);
     app.exit(0);
   } catch (err) {

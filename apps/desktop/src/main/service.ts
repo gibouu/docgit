@@ -25,9 +25,10 @@ import {
 import { shell } from 'electron';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, renameSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, join } from 'node:path';
+import { appendLog } from './log.js';
 
 export type CloudProvider = 'iCloud Drive' | 'OneDrive' | 'Dropbox' | 'Google Drive';
 
@@ -113,11 +114,7 @@ export class DocumentService {
    * every watcher event, commit outcome, and file write.
    */
   private log(message: string): void {
-    try {
-      appendFileSync(this.logPath, `${new Date().toISOString()}  ${message}\n`);
-    } catch {
-      // logging must never break the app
-    }
+    appendLog(this.logPath, message);
   }
 
   /** Flush pending writes to the main DB file so an on-disk backup is complete. */
