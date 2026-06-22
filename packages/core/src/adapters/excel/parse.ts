@@ -92,7 +92,10 @@ export function parseXlsx(data: Uint8Array): SpreadsheetModel {
     const target = relId ? relTargets.get(relId) : undefined;
     const partPath = target ? normalizePartPath(target) : `xl/worksheets/sheet${sheets.length + 1}.xml`;
     const partXml = files[partPath];
-    if (!partXml) continue;
+    // A referenced worksheet whose part is missing means a corrupt package —
+    // fail loudly instead of silently dropping the sheet (which would diff as a
+    // deleted sheet and mislead the user).
+    if (!partXml) throw new Error(`Corrupt .xlsx: worksheet part for sheet "${name}" is missing (${partPath})`);
     sheets.push({ name, cells: parseWorksheet(partXml, sharedStrings) });
   }
 
@@ -152,7 +155,10 @@ function parseWorksheet(data: Uint8Array, sharedStrings: string[]): Record<strin
   const sharedFormulas = new Map<string, string>();
   const root = parser.parse(strFromU8(data)) as XNode[];
   const worksheet = findChild(root, 'worksheet');
-  const sheetData = findChild(childrenOf(worksheet ?? ({} as XNode)), 'sheetData');
+  // A malformed worksheet part (no <worksheet> root) is corruption, not an
+  // empty sheet — a legitimately-empty sheet still has <worksheet><sheetData/>.
+  if (!worksheet) throw new Error('Corrupt .xlsx: malformed worksheet (missing <worksheet> root)');
+  const sheetData = findChild(childrenOf(worksheet), 'sheetData');
 
   for (const row of findAll(childrenOf(sheetData ?? ({} as XNode)), 'row')) {
     const rowNum = attrsOf(row)['@_r'];

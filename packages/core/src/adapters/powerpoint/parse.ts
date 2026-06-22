@@ -86,7 +86,9 @@ export function parsePptx(data: Uint8Array): PresentationModel {
     const target = relId ? relTargets.get(relId) : undefined;
     const partPath = target ? normalizePartPath(target) : `ppt/slides/slide${slides.length + 1}.xml`;
     const partXml = files[partPath];
-    if (!partXml) continue;
+    // A referenced slide whose part is missing is a corrupt package — fail
+    // loudly instead of dropping the slide (which would diff as a deletion).
+    if (!partXml) throw new Error(`Corrupt .pptx: slide part is missing (${partPath})`);
     slides.push({ id, shapes: parseSlide(partXml) });
   }
 
@@ -113,7 +115,9 @@ function parseRels(data: Uint8Array | undefined): Map<string, string> {
 function parseSlide(data: Uint8Array): SlideShape[] {
   const root = parser.parse(strFromU8(data)) as XNode[];
   const spTree = findDeep(root, 'p:spTree');
-  if (!spTree) return [];
+  // Every real slide has a shape tree (possibly empty). Its absence means a
+  // malformed slide part — throw rather than report it as a shapeless slide.
+  if (!spTree) throw new Error('Corrupt .pptx: malformed slide (missing shape tree)');
 
   const shapes: SlideShape[] = [];
   let anonymous = 0;

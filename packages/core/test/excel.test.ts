@@ -1,3 +1,4 @@
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { diffModels, parseDocument, parseXlsx } from '../src/index.js';
 import { makeXlsx, type FixtureSheet } from './helpers/makeXlsx.js';
@@ -96,6 +97,18 @@ describe('spreadsheet diff', () => {
   it('refuses to diff a spreadsheet against a text document', () => {
     const text = { kind: 'text' as const, blocks: [] };
     expect(() => diffModels(text, modelOf({ A1: 'x' }))).toThrow(/different kinds/);
+  });
+
+  it('throws on a referenced worksheet whose part is missing (#104)', () => {
+    const files = unzipSync(makeXlsx([{ name: 'S', cells: { A1: 'x' } }]));
+    delete files['xl/worksheets/sheet1.xml']; // corrupt: rel points at a missing part
+    expect(() => parseXlsx(zipSync(files))).toThrow(/worksheet part/i);
+  });
+
+  it('throws on a malformed worksheet root (#104)', () => {
+    const files = unzipSync(makeXlsx([{ name: 'S', cells: { A1: 'x' } }]));
+    files['xl/worksheets/sheet1.xml'] = strToU8('<?xml version="1.0"?><notAWorksheet/>');
+    expect(() => parseXlsx(zipSync(files))).toThrow(/malformed worksheet/i);
   });
 
   it('infers cell addresses when @r is omitted (#73)', () => {

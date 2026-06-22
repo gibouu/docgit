@@ -1,3 +1,4 @@
+import { strToU8, unzipSync, zipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { diffModels, parseDocument, parsePptx } from '../src/index.js';
 import { makePptx } from './helpers/makePptx.js';
@@ -99,6 +100,20 @@ describe('slides diff', () => {
     const diff = diffModels(before, after);
     if (diff.kind !== 'slides') throw new Error('expected a slides diff');
     expect(diff.summary.shapesChanged).toBe(2); // both shapes of the added slide count
+  });
+
+  it('throws on a referenced slide whose part is missing (#104)', () => {
+    const files = unzipSync(makePptx([{ shapes: [{ name: 'T', text: 'hi' }] }]));
+    delete files['ppt/slides/slide1.xml']; // corrupt: rel points at a missing part
+    expect(() => parsePptx(zipSync(files))).toThrow(/slide part is missing/i);
+  });
+
+  it('throws on a malformed slide root (#104)', () => {
+    const files = unzipSync(makePptx([{ shapes: [{ name: 'T', text: 'hi' }] }]));
+    files['ppt/slides/slide1.xml'] = strToU8(
+      '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld/></p:sld>',
+    );
+    expect(() => parsePptx(zipSync(files))).toThrow(/missing shape tree/i);
   });
 
   it('matches duplicate-named shapes by occurrence, not collapsing them (#100)', () => {
