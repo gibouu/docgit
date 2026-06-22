@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** App-level preferences, stored as JSON next to the version database. */
@@ -40,12 +40,26 @@ export class Settings {
     return { ...this.cache };
   }
 
+  /**
+   * Update a setting and persist it atomically (temp file + rename). The
+   * in-memory cache always reflects the change; if the write fails this THROWS
+   * so callers can tell the user the choice won't survive a relaunch (it's also
+   * a privacy control — a silently-unsaved auto-update opt-out is the failure
+   * mode #88 is about).
+   */
   set<K extends keyof AppSettings>(key: K, value: AppSettings[K]): AppSettings {
     this.cache = { ...this.cache, [key]: value };
+    const tmp = `${this.file}.tmp`;
     try {
-      writeFileSync(this.file, JSON.stringify(this.cache, null, 2));
-    } catch {
-      // persistence is best-effort; in-memory cache still reflects the change
+      writeFileSync(tmp, JSON.stringify(this.cache, null, 2));
+      renameSync(tmp, this.file); // atomic: never leaves a half-written settings file
+    } catch (err) {
+      try {
+        if (existsSync(tmp)) unlinkSync(tmp);
+      } catch {
+        // best-effort cleanup of the staged write
+      }
+      throw new Error('Settings could not be saved — the change applies now but may not survive a relaunch.');
     }
     return this.get();
   }

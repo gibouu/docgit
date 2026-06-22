@@ -126,7 +126,7 @@ export interface DocgitApi {
   checkForUpdate(): Promise<void>;
   installUpdate(): Promise<void>;
   updateSettings(): Promise<AppSettings>;
-  setAutoUpdate(enabled: boolean): Promise<AppSettings>;
+  setAutoUpdate(enabled: boolean): Promise<AppSettings & { persistError?: boolean }>;
   markUpdateNoteSeen(): Promise<AppSettings>;
   onUpdate(callback: (state: UpdateState) => void): () => void;
 
