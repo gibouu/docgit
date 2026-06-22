@@ -644,6 +644,16 @@ async function runSmokeTest(): Promise<void> {
     if (!installers.every((i) => /DocGit/i.test(i.path))) throw new Error('cleanup matched a non-DocGit file');
     rmSync(dlDir, { recursive: true, force: true });
 
+    // Rename safety (#82): a name with path separators is rejected and moves nothing.
+    let renameRejected = false;
+    try {
+      svc.renameDocument(doc.id, '../escaped');
+    } catch {
+      renameRejected = true;
+    }
+    if (!renameRejected) throw new Error('#82: rename must reject path-separator names');
+    if (existsSync(join(dir, '..', 'escaped.docx'))) throw new Error('#82: rejected rename moved the file');
+
     // Log rotation: once the file passes the cap, it rotates to <path>.1.
     const { appendLog } = await import('./log.js');
     const logFile = join(dir, 'rotate.log');
