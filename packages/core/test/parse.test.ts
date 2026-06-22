@@ -80,4 +80,19 @@ describe('Word adapter — parseDocx', () => {
       /document\.xml/,
     );
   });
+
+  it('parses text inside a block-level content control (w:sdt) (#71)', () => {
+    const body = `<w:sdt><w:sdtContent><w:p><w:r><w:t>Inside a control</w:t></w:r></w:p></w:sdtContent></w:sdt>`;
+    const model = parseDocx(makeDocx(body));
+    expect(model.blocks.map((b) => ('text' in b ? b.text : ''))).toContain('Inside a control');
+  });
+
+  it('excludes tracked move-from content from final-state text (#72)', () => {
+    const body =
+      `<w:p><w:moveFrom><w:r><w:t>moved sentence</w:t></w:r></w:moveFrom></w:p>` +
+      `<w:p><w:moveTo><w:r><w:t>moved sentence</w:t></w:r></w:moveTo></w:p>`;
+    const texts = parseDocx(makeDocx(body)).blocks.map((b) => ('text' in b ? b.text : ''));
+    expect(texts.filter((t) => t === 'moved sentence')).toHaveLength(1); // moveTo kept, not duplicated
+    expect(texts[0]).toBe(''); // the move-from paragraph has no final text
+  });
 });
