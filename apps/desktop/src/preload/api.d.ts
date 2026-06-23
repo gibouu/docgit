@@ -133,6 +133,7 @@ export interface DocgitApi {
 
   onChanged(callback: (documentId: string) => void): () => void;
 
+  appVersion(): Promise<string>;
   updateState(): Promise<UpdateState>;
   checkForUpdate(): Promise<void>;
   installUpdate(): Promise<void>;

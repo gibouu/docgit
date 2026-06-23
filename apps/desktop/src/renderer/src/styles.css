@@ -41,6 +41,22 @@ body {
   flex-direction: column;
 }
 
+/* Small, unobtrusive build version in the bottom-left corner. */
+.app-version {
+  position: fixed;
+  left: 12px;
+  bottom: 8px;
+  font-family: var(--dg-sans);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--dg-ink-soft);
+  opacity: 0.5;
+  pointer-events: none;
+  user-select: none;
+  z-index: 10;
+}
+
 /* macOS hiddenInset titlebar drag strip */
 .titlebar {
   height: 38px;
