@@ -42,10 +42,9 @@ export function App() {
       {showUpdateNote && (
         <Modal title="DocGit keeps itself up to date" onClose={() => { void window.docgit.markUpdateNoteSeen(); setShowUpdateNote(false); }}>
           <p className="modal-hint">
-            DocGit now checks GitHub for a new version when it starts, and downloads updates in the background.
-            A downloaded update installs automatically the next time you quit and reopen DocGit, so you always
-            run the latest version — or click “Restart to update” to apply it right away. That check is the only
-            network use DocGit starts on its own — connecting a Grist document also reaches the network, but only when you choose to.
+            DocGit now checks GitHub for a new version when it starts, and downloads updates in the background
+            (they install only when you click “Restart to update”). That check is the only network use DocGit
+            starts on its own — connecting a Grist document also reaches the network, but only when you choose to.
             Everything else stays on your Mac. You can turn the update check off any time under ⚙ Settings.
           </p>
           <div className="modal-actions">

@@ -37,11 +37,10 @@ export function initUpdater(send: Send, logPath: string, autoUpdate: boolean): v
   const log = (msg: string) => appendLog(logPath, `updater ${msg}`);
 
   autoUpdater.autoDownload = true;
-  // Always run the latest version: a downloaded update installs automatically
-  // the next time DocGit quits, so reopening the app lands you on the newest
-  // build. "Restart to update" is just the fast path (apply it right now);
-  // "Later" postpones to the next normal quit→relaunch rather than forever.
-  autoUpdater.autoInstallOnAppQuit = true;
+  // Install ONLY when the user explicitly clicks "Restart to update"
+  // (quitAndInstall). "Later" then genuinely postpones — a downloaded update
+  // never installs on a surprise quit, which matters for a local-first tool.
+  autoUpdater.autoInstallOnAppQuit = false;
   const logger: Logger = { info: log, warn: log, error: log, debug: () => {} };
   autoUpdater.logger = logger;
 
