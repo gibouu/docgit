@@ -174,6 +174,10 @@ Planned fix, in order:
   background, and prompt "Restart to update". The macOS code signature is
   verified before install. On by default; opt out under ⚙ Settings
   (`autoUpdate` in `settings.json`, stored next to the database).
+- **Always-latest install.** `autoInstallOnAppQuit = true`: a downloaded
+  update applies automatically on the next quit→relaunch, so reopening DocGit
+  always lands on the newest build. "Restart to update" is the immediate path;
+  "Later" defers to the next normal quit rather than skipping the update.
 - **Privacy exception.** This is the only network call DocGit makes on its own.
   It can be disabled; no telemetry is sent and no host other than GitHub
   Releases is contacted. (See the README privacy section.)
