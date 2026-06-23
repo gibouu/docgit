@@ -175,6 +175,7 @@ function registerIpc(svc: DocumentService): void {
   ipcMain.handle('links:refresh', (_e, documentId: string) => svc.refreshLinks(documentId));
   ipcMain.handle('links:delete', (_e, documentId: string, linkId: string) => svc.deleteLink(documentId, linkId));
 
+  ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('update:getState', () => getUpdateState());
   ipcMain.handle('update:check', () => checkForUpdatesNow());
   ipcMain.handle('update:install', () => quitAndInstall());

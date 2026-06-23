@@ -72,6 +72,7 @@ const api = {
     return () => ipcRenderer.removeListener('docgit:changed', listener);
   },
 
+  appVersion: () => ipcRenderer.invoke('app:version'),
   updateState: () => ipcRenderer.invoke('update:getState'),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),

@@ -16,9 +16,11 @@ export function App() {
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [route, setRoute] = useState<Route>({ kind: 'library' });
   const [showUpdateNote, setShowUpdateNote] = useState(false);
+  const [version, setVersion] = useState('');
 
   useEffect(() => {
     void window.docgit.updateSettings().then((s) => setShowUpdateNote(!s.seenUpdateNote));
+    void window.docgit.appVersion().then(setVersion);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -72,6 +74,11 @@ export function App() {
           onShowHistory={() => setRoute({ kind: 'history' })}
           onRefresh={refresh}
         />
+      )}
+      {version && (
+        <span className="app-version" title={`DocGit ${version}`}>
+          v{version}
+        </span>
       )}
     </div>
   );
