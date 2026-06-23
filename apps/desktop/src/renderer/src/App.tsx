@@ -34,6 +34,7 @@ export function App() {
 
   return (
     <div className="app">
+      <div className="titlebar" />
       <UpdateBanner />
       <CleanupBanner />
       {showUpdateNote && (
@@ -51,7 +52,6 @@ export function App() {
           </div>
         </Modal>
       )}
-      <div className="titlebar" />
       {route.kind === 'doc' && openDoc ? (
         <DocumentView
           key={`${openDoc.id}:${route.commitId ?? ''}`}
